@@ -1,0 +1,590 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import {
+  PieChart, Pie, Cell, Tooltip, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer
+} from 'recharts';
+import './App.css';
+
+const API = 'http://localhost:8000';
+
+const questionThemes = [
+  'theme-rr',
+  'theme-mi',
+  'theme-rcb',
+  'theme-mi',
+  'theme-srh',
+  'theme-kkr',
+  'theme-dhoni'
+];
+
+function App() {
+  const [screen, setScreen] = useState('home');
+  const [playerName, setPlayerName] = useState('');
+  const [category, setCategory] = useState('');
+  const [questions, setQuestions] = useState([]);
+  const [currentQ, setCurrentQ] = useState(0);
+  const [score, setScore] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [isCorrect, setIsCorrect] = useState(null);
+  const [funFact, setFunFact] = useState('');
+  const [timer, setTimer] = useState(30);
+  const [streak, setStreak] = useState(0);
+  const [bestStreak, setBestStreak] = useState(0);
+  const [times, setTimes] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [playerStats, setPlayerStats] = useState(null);
+  const [leaderboardCategory, setLeaderboardCategory] = useState('IPL History');
+  const [questionStats, setQuestionStats] = useState([]);
+
+  const handleAnswer = useCallback(async (answer) => {
+    if (selected !== null) return;
+    const timeTaken = 30 - timer;
+    setTimes(prev => [...prev, timeTaken]);
+    setSelected(answer);
+
+    try {
+      const res = await axios.post(`${API}/questions/answer`, null, {
+        params: {
+          question_id: questions[currentQ].id,
+          answer: answer,
+          time_taken: timeTaken
+        }
+      });
+
+      const correct = res.data.correct;
+      setIsCorrect(correct);
+
+      if (correct) {
+        setScore(prev => prev + 1);
+        setStreak(prev => {
+          const newStreak = prev + 1;
+          setBestStreak(best => Math.max(best, newStreak));
+          return newStreak;
+        });
+        document.body.className = questionThemes[currentQ] || 'theme-correct';
+      } else {
+        setStreak(0);
+        document.body.className = 'theme-wrong';
+      }
+
+      setFunFact(res.data.fun_fact);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [selected, timer, questions, currentQ]);
+
+  useEffect(() => {
+    if (screen !== 'quiz' || selected !== null) return;
+    if (timer === 0) { handleAnswer('X'); return; }
+    const interval = setInterval(() => setTimer(prev => prev - 1), 1000);
+    return () => clearInterval(interval);
+  }, [screen, timer, selected, handleAnswer]);
+
+  const startQuiz = async (cat) => {
+    setCategory(cat);
+    try {
+      const res = await axios.get(`${API}/questions/`, {
+        params: { category: cat }
+      });
+      setQuestions(res.data);
+      setScreen('quiz');
+      setCurrentQ(0);
+      setScore(0);
+      setSelected(null);
+      setIsCorrect(null);
+      setFunFact('');
+      setTimer(30);
+      setStreak(0);
+      setBestStreak(0);
+      setTimes([]);
+      document.body.className = 'theme-neutral';
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const nextQuestion = () => {
+    if (currentQ + 1 < questions.length) {
+      setCurrentQ(prev => prev + 1);
+      setSelected(null);
+      setIsCorrect(null);
+      setFunFact('');
+      setTimer(30);
+      document.body.className = 'theme-neutral';
+    } else {
+      finishQuiz();
+    }
+  };
+
+  const finishQuiz = async () => {
+    const avgTime = times.length > 0
+      ? times.reduce((a, b) => a + b, 0) / times.length
+      : 0;
+
+    try {
+      const res = await axios.post(`${API}/players/submit`, null, {
+        params: {
+          name: playerName,
+          score: score,
+          total_questions: questions.length,
+          avg_time: avgTime,
+          best_streak: bestStreak,
+          category: category
+        }
+      });
+      setPlayerStats(res.data.player);
+    } catch (err) {
+      console.error(err);
+    }
+
+    try {
+      const statsRes = await axios.get(`${API}/questions/stats`, {
+        params: { category: category }
+      });
+      setQuestionStats(statsRes.data);
+    } catch (err) {
+      console.error(err);
+    }
+
+    document.body.className = 'theme-results';
+    setScreen('results');
+  };
+
+  const loadLeaderboard = async (cat = 'IPL History') => {
+    try {
+      const res = await axios.get(`${API}/leaderboard/`, {
+        params: { category: cat }
+      });
+      setLeaderboard(res.data);
+      setLeaderboardCategory(cat);
+    } catch (err) {
+      console.error(err);
+    }
+    document.body.className = 'theme-leaderboard';
+    setScreen('leaderboard');
+  };
+
+  const getOptionClass = (opt) => {
+    if (selected === null) return 'option-btn';
+    const correct = questions[currentQ]?.correct_answer;
+    if (opt === correct) return 'option-btn correct';
+    if (opt === selected && opt !== correct) return 'option-btn wrong';
+    return 'option-btn';
+  };
+
+  // HOME SCREEN
+  document.body.className = screen === 'home' ? 'theme-home' :
+                             screen === 'analytics' ? 'theme-analytics' :
+                             document.body.className;
+
+  if (screen === 'home') return (
+    <div className="app">
+      <div className="header">
+        <h1>🏏 IPL Quiz</h1>
+        <p>Test your IPL knowledge and top the leaderboard!</p>
+      </div>
+      <div className="home-screen">
+        <input
+          className="name-input"
+          placeholder="Enter your name to start..."
+          value={playerName}
+          onChange={e => setPlayerName(e.target.value)}
+        />
+        {playerName.trim() && (
+          <>
+            <h3 style={{ marginBottom: '15px' }}>Select a Category</h3>
+            <div className="category-buttons">
+              <button className="category-btn"
+                onClick={() => startQuiz('IPL History')}>
+                🏆 IPL History
+              </button>
+              <button className="category-btn"
+                onClick={() => startQuiz('Player Records')}>
+                🌟 Player Records
+              </button>
+            </div>
+          </>
+        )}
+        <br />
+        <button className="btn btn-secondary"
+          onClick={() => loadLeaderboard('IPL History')}>
+          🏆 View Leaderboard
+        </button>
+      </div>
+    </div>
+  );
+
+  // QUIZ SCREEN
+  if (screen === 'quiz') {
+    const q = questions[currentQ];
+    if (selected === null) document.body.className = 'theme-neutral';
+
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🏏 IPL Quiz</h1>
+        </div>
+        <div className="quiz-screen">
+          <div className="quiz-header">
+            <span className="progress">
+              Q {currentQ + 1} of {questions.length}
+            </span>
+            <span className={`timer ${timer <= 10 ? 'warning' : ''}`}>
+              ⏱️ {timer}s
+            </span>
+            <span className="streak">
+              {streak >= 3 ? `🔥 ${streak} Streak!` : `Streak: ${streak}`}
+            </span>
+          </div>
+
+          <div className="progress-bar">
+            <div
+              className="progress-fill"
+              style={{ width: `${(currentQ / questions.length) * 100}%` }}
+            />
+          </div>
+
+          <div className={`question-card ${
+            selected === null ? 'new-question' :
+            isCorrect ? 'answered-correct' : 'answered-wrong'
+          }`}>
+            <span className={`difficulty-badge ${q?.difficulty}`}>
+              {q?.difficulty?.toUpperCase()}
+            </span>
+            <p className="question-text">{q?.question}</p>
+            <div className="options">
+              {['A', 'B', 'C', 'D'].map(opt => (
+                <button
+                  key={opt}
+                  className={getOptionClass(opt)}
+                  onClick={() => handleAnswer(opt)}
+                  disabled={selected !== null}
+                >
+                  <strong>{opt})</strong>{' '}
+                  {q?.[`option_${opt.toLowerCase()}`]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {selected && (
+            <div className={`result-banner ${isCorrect ? 'correct' : 'wrong'}`}>
+              {isCorrect
+                ? '🎉 Correct! Well done!'
+                : `❌ Wrong! The answer was ${questions[currentQ]?.correct_answer}`}
+            </div>
+          )}
+
+          {funFact && (
+            <div className="fun-fact">
+              <span>💡 Fun Fact: </span>{funFact}
+            </div>
+          )}
+
+          {selected && (
+            <div style={{ textAlign: 'center', marginTop: '20px' }}>
+              <button className="btn btn-primary" onClick={nextQuestion}>
+                {currentQ + 1 < questions.length
+                  ? 'Next Question →'
+                  : 'See Results 🏆'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // RESULTS SCREEN
+  if (screen === 'results') {
+    const avgTime = times.length > 0
+      ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1)
+      : 0;
+
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🏏 IPL Quiz</h1>
+        </div>
+        <div className="results-screen">
+          <h2>Quiz Complete, {playerName}! 🎉</h2>
+          <div className="score-circle">
+            <h2>{score}/{questions.length}</h2>
+            <p>Score</p>
+          </div>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <h3>⏱️ {avgTime}s</h3>
+              <p>Avg Time Per Question</p>
+            </div>
+            <div className="stat-card">
+              <h3>🔥 {bestStreak}</h3>
+              <p>Best Streak</p>
+            </div>
+            <div className="stat-card">
+              <h3>🎯 {playerStats?.accuracy}%</h3>
+              <p>Overall Accuracy</p>
+            </div>
+          </div>
+          {playerStats && (
+            <div className="question-card" style={{ textAlign: 'left' }}>
+              <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
+                📊 Your Stats
+              </h3>
+              <p>🏆 Best Score Ever: {playerStats.best_score}/{questions.length}</p>
+              <p>🎮 Total Quizzes Played: {playerStats.total_quizzes}</p>
+              <p>⚡ Best Streak Ever: {playerStats.best_streak}</p>
+              <p>⏱️ Avg Time Per Question: {playerStats.avg_time}s</p>
+            </div>
+          )}
+          <div>
+            <button className="btn btn-primary"
+              onClick={() => startQuiz(category)}>
+              Play Again 🔄
+            </button>
+            <button className="btn btn-secondary"
+              onClick={() => setScreen('home')}>
+              Home 🏠
+            </button>
+            <button className="btn btn-secondary"
+              onClick={() => loadLeaderboard('IPL History')}>
+              Leaderboard 🏆
+            </button>
+            <button className="btn btn-secondary"
+              onClick={() => setScreen('analytics')}>
+              📊 View Analytics
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ANALYTICS SCREEN
+  if (screen === 'analytics') {
+    document.body.className = 'theme-analytics';
+    const pieData = [
+      {
+        name: 'Correct',
+        value: questionStats.reduce((a, q) => a + q.correct_attempts, 0)
+      },
+      {
+        name: 'Wrong',
+        value: questionStats.reduce(
+          (a, q) => a + (q.total_attempts - q.correct_attempts), 0
+        )
+      }
+    ];
+    const COLORS = ['#2ecc71', '#e74c3c'];
+
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🏏 IPL Quiz</h1>
+        </div>
+        <div style={{ padding: '20px 0' }}>
+          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
+            📊 Question Analytics
+          </h2>
+          <h4 style={{ textAlign: 'center', color: '#aaa', marginBottom: '30px' }}>
+            {category}
+          </h4>
+
+          <div className="question-card" style={{ marginBottom: '30px' }}>
+            <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
+              Overall Correct vs Wrong
+            </h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <PieChart>
+                <Pie data={pieData} cx="50%" cy="50%"
+                  outerRadius={80} dataKey="value"
+                  label={({ name, percent }) =>
+                    `${name} ${(percent * 100).toFixed(0)}%`}>
+                  {pieData.map((entry, index) => (
+                    <Cell key={index} fill={COLORS[index]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="question-card" style={{ marginBottom: '30px' }}>
+            <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
+              Accuracy Per Question
+            </h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={questionStats.map((q, i) => ({
+                  name: `Q${i + 1}`,
+                  accuracy: q.accuracy,
+                  difficulty: q.difficulty
+                }))}
+                margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#0f3460" />
+                <XAxis dataKey="name" stroke="#fff" />
+                <YAxis stroke="#fff" domain={[0, 100]}
+                  tickFormatter={v => `${v}%`} />
+                <Tooltip
+                  formatter={(value) => [`${value}%`, 'Accuracy']}
+                  contentStyle={{ background: '#16213e', border: 'none' }} />
+                <Bar dataKey="accuracy" radius={[5, 5, 0, 0]}>
+                  {questionStats.map((q, index) => (
+                    <Cell key={index}
+                      fill={
+                        q.difficulty === 'easy' ? '#2ecc71' :
+                        q.difficulty === 'medium' ? '#f39c12' : '#e74c3c'
+                      } />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+            <div style={{ textAlign: 'center', marginTop: '10px' }}>
+              <span style={{ color: '#2ecc71', marginRight: '15px' }}>🟢 Easy</span>
+              <span style={{ color: '#f39c12', marginRight: '15px' }}>🟡 Medium</span>
+              <span style={{ color: '#e74c3c' }}>🔴 Hard</span>
+            </div>
+          </div>
+
+          <div className="question-card">
+            <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
+              Question Breakdown
+            </h3>
+            {questionStats.map((q, i) => (
+              <div key={q.id} style={{
+                marginBottom: '15px', padding: '15px',
+                background: '#0f3460', borderRadius: '10px'
+              }}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  marginBottom: '8px'
+                }}>
+                  <span style={{ fontWeight: 'bold' }}>Q{i + 1}</span>
+                  <span className={`difficulty-badge ${q.difficulty}`}>
+                    {q.difficulty.toUpperCase()}
+                  </span>
+                </div>
+                <p style={{
+                  color: '#aaa', fontSize: '0.9rem', marginBottom: '10px'
+                }}>
+                  {q.question}
+                </p>
+                <div style={{
+                  background: '#1a1a2e', borderRadius: '5px',
+                  overflow: 'hidden', height: '20px'
+                }}>
+                  <div style={{
+                    width: `${q.accuracy}%`, height: '100%',
+                    background: q.difficulty === 'easy' ? '#2ecc71' :
+                                q.difficulty === 'medium' ? '#f39c12' : '#e74c3c',
+                    transition: 'width 1s ease'
+                  }} />
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  marginTop: '5px', fontSize: '0.85rem', color: '#aaa'
+                }}>
+                  <span>✅ {q.correct_attempts} correct</span>
+                  <span>{q.accuracy}% accuracy</span>
+                  <span>👥 {q.total_attempts} attempts</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <button className="btn btn-secondary"
+              onClick={() => setScreen('results')}>
+              ← Back to Results
+            </button>
+            <button className="btn btn-primary"
+              onClick={() => setScreen('home')}>
+              Home 🏠
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // LEADERBOARD SCREEN
+  if (screen === 'leaderboard') return (
+    <div className="app">
+      <div className="header">
+        <h1>🏏 IPL Quiz</h1>
+      </div>
+      <div className="leaderboard-screen">
+        <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
+          🏆 Global Leaderboard
+        </h2>
+        <div className="nav" style={{ marginTop: '20px' }}>
+          <button
+            className={`nav-btn ${leaderboardCategory === 'IPL History' ? 'active' : ''}`}
+            onClick={() => loadLeaderboard('IPL History')}>
+            🏆 IPL History
+          </button>
+          <button
+            className={`nav-btn ${leaderboardCategory === 'Player Records' ? 'active' : ''}`}
+            onClick={() => loadLeaderboard('Player Records')}>
+            🌟 Player Records
+          </button>
+        </div>
+
+        <h3 style={{
+          textAlign: 'center', color: '#aaa',
+          marginBottom: '15px', marginTop: '10px'
+        }}>
+          {leaderboardCategory}
+        </h3>
+
+        {leaderboard.length === 0 ? (
+          <p style={{ textAlign: 'center', color: '#aaa', marginTop: '30px' }}>
+            No scores yet for this category — be the first! 🏏
+          </p>
+        ) : (
+          <table className="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Best Score</th>
+                <th>Avg Time</th>
+                <th>Best Streak</th>
+              </tr>
+            </thead>
+            <tbody>
+              {leaderboard.map((player) => (
+                <tr key={player.rank}>
+                  <td className={`rank-${player.rank}`}>
+                    {player.rank === 1 ? '🥇' :
+                     player.rank === 2 ? '🥈' :
+                     player.rank === 3 ? '🥉' : `#${player.rank}`}
+                  </td>
+                  <td>{player.name}</td>
+                  <td>{player.best_score}/7</td>
+                  <td>{player.avg_time}s</td>
+                  <td>🔥 {player.best_streak}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: '20px' }}>
+          <button className="btn btn-secondary"
+            onClick={() => setScreen('results')}>
+            ← Back to Results
+          </button>
+          <button className="btn btn-primary"
+            onClick={() => setScreen('home')}>
+            Play Quiz 🏏
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
