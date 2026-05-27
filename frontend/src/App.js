@@ -36,6 +36,8 @@ function App() {
   const [playerStats, setPlayerStats] = useState(null);
   const [leaderboardCategory, setLeaderboardCategory] = useState('IPL History');
   const [questionStats, setQuestionStats] = useState([]);
+  const [loading, setLoading] = useState(false);
+const [error, setError] = useState(null);
 
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null) return;
@@ -83,6 +85,8 @@ function App() {
 
   const startQuiz = async (cat) => {
     setCategory(cat);
+    setLoading(true);
+    setError(null);
     try {
       const res = await axios.get(`${API}/questions/`, {
         params: { category: cat }
@@ -100,7 +104,9 @@ function App() {
       setTimes([]);
       document.body.className = 'theme-neutral';
     } catch (err) {
-      console.error(err);
+      setError('Failed to load questions! Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -152,6 +158,8 @@ function App() {
   };
 
   const loadLeaderboard = async (cat = 'IPL History') => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await axios.get(`${API}/leaderboard/`, {
         params: { category: cat }
@@ -159,7 +167,9 @@ function App() {
       setLeaderboard(res.data);
       setLeaderboardCategory(cat);
     } catch (err) {
-      console.error(err);
+      setError('Failed to load leaderboard! Please try again.');
+    } finally {
+      setLoading(false);
     }
     document.body.className = 'theme-leaderboard';
     setScreen('leaderboard');
@@ -172,7 +182,35 @@ function App() {
     if (opt === selected && opt !== correct) return 'option-btn wrong';
     return 'option-btn';
   };
+// LOADING SCREEN
+  if (loading) return (
+    <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
+      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🏏</div>
+      <h2 style={{ color: '#f5a623', marginBottom: '10px' }}>Loading...</h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)' }}>Please wait a moment</p>
+      <div className="loading-spinner" />
+    </div>
+  );
 
+  // ERROR SCREEN
+  if (error) return (
+    <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
+      <div style={{ fontSize: '4rem', marginBottom: '20px' }}>❌</div>
+      <h2 style={{ color: '#e74c3c', marginBottom: '10px' }}>Oops!</h2>
+      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '20px' }}>
+        {error}
+      </p>
+      <button
+        className="btn btn-primary"
+        onClick={() => {
+          setError(null);
+          setScreen('home');
+        }}
+      >
+        Go Back Home 🏠
+      </button>
+    </div>
+  );
   // HOME SCREEN
   document.body.className = screen === 'home' ? 'theme-home' :
                              screen === 'analytics' ? 'theme-analytics' :
@@ -586,5 +624,6 @@ function App() {
     </div>
   );
 }
+
 
 export default App;
