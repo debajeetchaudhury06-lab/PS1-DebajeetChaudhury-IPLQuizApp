@@ -18,12 +18,12 @@ def submit_quiz(
     try:
         # Get or create player
         player = db.query(Player).filter(
-            Player.name == name
+            Player.name == name.strip()
         ).first()
 
         if not player:
             player = Player(
-                name=name,
+                name=name.strip(),
                 total_quizzes=0,
                 best_score=0,
                 total_correct=0,
@@ -56,7 +56,7 @@ def submit_quiz(
 
         # Save attempt
         attempt = Attempt(
-            player_name=name,
+            player_name=name.strip(),
             score=score,
             total_questions=total_questions,
             avg_time=avg_time,
@@ -96,7 +96,7 @@ def submit_quiz(
 def get_player(name: str, db: Session = Depends(get_db)):
     try:
         player = db.query(Player).filter(
-            Player.name == name
+            Player.name == name.strip()
         ).first()
 
         if not player:
