@@ -37,13 +37,17 @@ function App() {
   const [leaderboardCategory, setLeaderboardCategory] = useState('IPL History');
   const [questionStats, setQuestionStats] = useState([]);
   const [loading, setLoading] = useState(false);
-const [error, setError] = useState(null);
+  const [error, setError] = useState(null);
+  const [waitingForApi, setWaitingForApi] = useState(false);
 
   const handleAnswer = useCallback(async (answer) => {
-    if (selected !== null) return;
+    if (selected !== null || waitingForApi) return;
+
     const timeTaken = 30 - timer;
     setTimes(prev => [...prev, timeTaken]);
     setSelected(answer);
+    setWaitingForApi(true);
+    setIsCorrect(null);
 
     try {
       const res = await axios.post(`${API}/questions/answer`, null, {
@@ -56,6 +60,7 @@ const [error, setError] = useState(null);
 
       const correct = res.data.correct;
       setIsCorrect(correct);
+      setWaitingForApi(false);
 
       if (correct) {
         setScore(prev => prev + 1);
@@ -73,8 +78,9 @@ const [error, setError] = useState(null);
       setFunFact(res.data.fun_fact);
     } catch (err) {
       console.error(err);
+      setWaitingForApi(false);
     }
-  }, [selected, timer, questions, currentQ]);
+  }, [selected, timer, questions, currentQ, waitingForApi]);
 
   useEffect(() => {
     if (screen !== 'quiz' || selected !== null) return;
@@ -102,6 +108,7 @@ const [error, setError] = useState(null);
       setStreak(0);
       setBestStreak(0);
       setTimes([]);
+      setWaitingForApi(false);
       document.body.className = 'theme-neutral';
     } catch (err) {
       setError('Failed to load questions! Please try again.');
@@ -117,6 +124,7 @@ const [error, setError] = useState(null);
       setIsCorrect(null);
       setFunFact('');
       setTimer(30);
+      setWaitingForApi(false);
       document.body.className = 'theme-neutral';
     } else {
       finishQuiz();
@@ -177,12 +185,14 @@ const [error, setError] = useState(null);
 
   const getOptionClass = (opt) => {
     if (selected === null) return 'option-btn';
+    if (isCorrect === null) return 'option-btn'; // Still waiting for API
     const correct = questions[currentQ]?.correct_answer;
     if (opt === correct) return 'option-btn correct';
     if (opt === selected && opt !== correct) return 'option-btn wrong';
     return 'option-btn';
   };
-// LOADING SCREEN
+
+  // LOADING SCREEN
   if (loading) return (
     <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
       <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🏏</div>
@@ -211,6 +221,7 @@ const [error, setError] = useState(null);
       </button>
     </div>
   );
+
   // HOME SCREEN
   document.body.className = screen === 'home' ? 'theme-home' :
                              screen === 'analytics' ? 'theme-analytics' :
@@ -285,6 +296,7 @@ const [error, setError] = useState(null);
 
           <div className={`question-card ${
             selected === null ? 'new-question' :
+            isCorrect === null ? '' :
             isCorrect ? 'answered-correct' : 'answered-wrong'
           }`}>
             <span className={`difficulty-badge ${q?.difficulty}`}>
@@ -306,7 +318,13 @@ const [error, setError] = useState(null);
             </div>
           </div>
 
-          {selected && (
+          {waitingForApi && (
+            <div style={{ textAlign: 'center', marginTop: '15px' }}>
+              <div className="loading-spinner" style={{ width: '30px', height: '30px', borderWidth: '3px' }} />
+            </div>
+          )}
+
+          {selected && isCorrect !== null && (
             <div className={`result-banner ${isCorrect ? 'correct' : 'wrong'}`}>
               {isCorrect
                 ? '🎉 Correct! Well done!'
@@ -320,7 +338,7 @@ const [error, setError] = useState(null);
             </div>
           )}
 
-          {selected && (
+          {selected && isCorrect !== null && (
             <div style={{ textAlign: 'center', marginTop: '20px' }}>
               <button className="btn btn-primary" onClick={nextQuestion}>
                 {currentQ + 1 < questions.length
@@ -624,6 +642,5 @@ const [error, setError] = useState(null);
     </div>
   );
 }
-
 
 export default App;
