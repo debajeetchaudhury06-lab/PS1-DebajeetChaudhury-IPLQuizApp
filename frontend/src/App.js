@@ -9,17 +9,21 @@ import './App.css';
 const API = 'https://backend12.up.railway.app';
 
 const questionThemes = [
-  'theme-rr',
-  'theme-mi',
-  'theme-rcb',
-  'theme-mi',
-  'theme-srh',
-  'theme-kkr',
-  'theme-dhoni'
+  'theme-rr', 'theme-mi', 'theme-rcb', 'theme-mi',
+  'theme-srh', 'theme-kkr', 'theme-dhoni'
 ];
 
 function App() {
-  const [screen, setScreen] = useState('home');
+  const [screen, setScreen] = useState('auth');           // ← starts at auth
+
+  // ── auth state ────────────────────────────────────────
+  const [authMode, setAuthMode] = useState('login');      // 'login' | 'register'
+  const [authName, setAuthName] = useState('');
+  const [authPasskey, setAuthPasskey] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  // ─────────────────────────────────────────────────────
+
   const [playerName, setPlayerName] = useState('');
   const [category, setCategory] = useState('');
   const [questions, setQuestions] = useState([]);
@@ -54,15 +58,40 @@ function App() {
   const [approveDialog, setApproveDialog] = useState(null);
   const [approveDifficulty, setApproveDifficulty] = useState('medium');
 
+  // ── AUTH HANDLERS ──────────────────────────────────────────────────────────
+
+  const handleAuth = async () => {
+    if (!authName.trim() || !authPasskey.trim()) {
+      setAuthError('Please enter both your name and passkey.');
+      return;
+    }
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const endpoint = authMode === 'register' ? '/players/register' : '/players/login';
+      const res = await axios.post(`${API}${endpoint}`, null, {
+        params: { name: authName.trim(), passkey: authPasskey }
+      });
+      setPlayerName(res.data.player.name);
+      setAuthPasskey('');   // clear from memory
+      setScreen('home');
+    } catch (err) {
+      const msg = err.response?.data?.detail || 'Something went wrong. Try again.';
+      setAuthError(msg);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null || waitingForApi) return;
-
     const timeTaken = 30 - timer;
     setTimes(prev => [...prev, timeTaken]);
     setSelected(answer);
     setWaitingForApi(true);
     setIsCorrect(null);
-
     try {
       const res = await axios.post(`${API}/questions/answer`, null, {
         params: {
@@ -71,11 +100,9 @@ function App() {
           time_taken: timeTaken
         }
       });
-
       const correct = res.data.correct;
       setIsCorrect(correct);
       setWaitingForApi(false);
-
       if (correct) {
         setScore(prev => prev + 1);
         setStreak(prev => {
@@ -88,7 +115,6 @@ function App() {
         setStreak(0);
         document.body.className = 'theme-wrong';
       }
-
       setFunFact(res.data.fun_fact);
     } catch (err) {
       console.error(err);
@@ -108,9 +134,7 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API}/questions/`, {
-        params: { category: cat }
-      });
+      const res = await axios.get(`${API}/questions/`, { params: { category: cat } });
       setQuestions(res.data);
       setScreen('quiz');
       setCurrentQ(0);
@@ -147,34 +171,20 @@ function App() {
 
   const finishQuiz = async () => {
     const avgTime = times.length > 0
-      ? times.reduce((a, b) => a + b, 0) / times.length
-      : 0;
-
+      ? times.reduce((a, b) => a + b, 0) / times.length : 0;
     try {
       const res = await axios.post(`${API}/players/submit`, null, {
         params: {
-          name: playerName,
-          score: score,
-          total_questions: questions.length,
-          avg_time: avgTime,
-          best_streak: bestStreak,
-          category: category
+          name: playerName, score, total_questions: questions.length,
+          avg_time: avgTime, best_streak: bestStreak, category
         }
       });
       setPlayerStats(res.data.player);
-    } catch (err) {
-      console.error(err);
-    }
-
+    } catch (err) { console.error(err); }
     try {
-      const statsRes = await axios.get(`${API}/questions/stats`, {
-        params: { category: category }
-      });
+      const statsRes = await axios.get(`${API}/questions/stats`, { params: { category } });
       setQuestionStats(statsRes.data);
-    } catch (err) {
-      console.error(err);
-    }
-
+    } catch (err) { console.error(err); }
     document.body.className = 'theme-results';
     setScreen('results');
   };
@@ -183,9 +193,7 @@ function App() {
     setLoading(true);
     setError(null);
     try {
-      const res = await axios.get(`${API}/leaderboard/`, {
-        params: { category: cat }
-      });
+      const res = await axios.get(`${API}/leaderboard/`, { params: { category: cat } });
       setLeaderboard(res.data);
       setLeaderboardCategory(cat);
     } catch (err) {
@@ -202,9 +210,7 @@ function App() {
       const res = await axios.get(`${API}/questions/all`);
       setAllQuestions(res.data);
       setPendingSuggestions(res.data.filter(q => q.difficulty === 'pending'));
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
     setAdminTab('questions');
     setScreen('admin');
   };
@@ -213,138 +219,90 @@ function App() {
     try {
       const res = await axios.get(`${API}/questions/all`);
       setPendingSuggestions(res.data.filter(q => q.difficulty === 'pending'));
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const deleteQuestion = async (id) => {
-    if (!adminKey) {
-      alert('Please enter admin API key first!');
-      return;
-    }
+    if (!adminKey) { alert('Please enter admin API key first!'); return; }
     try {
-      await axios.delete(`${API}/questions/${id}`, {
-        headers: { 'x-api-key': adminKey }
-      });
+      await axios.delete(`${API}/questions/${id}`, { headers: { 'x-api-key': adminKey } });
       setAllQuestions(prev => prev.filter(q => q.id !== id));
       alert('Question deleted successfully!');
     } catch (err) {
-      if (err.response?.status === 403) {
-        alert('Invalid API Key! Access denied.');
-      } else {
-        alert('Error deleting question!');
-      }
+      alert(err.response?.status === 403 ? 'Invalid API Key! Access denied.' : 'Error deleting question!');
     }
   };
 
   const updateQuestion = async (id) => {
-    if (!adminKey) {
-      alert('Please enter admin API key first!');
-      return;
-    }
+    if (!adminKey) { alert('Please enter admin API key first!'); return; }
     try {
       await axios.put(`${API}/questions/${id}`, null, {
-        params: editForm,
-        headers: { 'x-api-key': adminKey }
+        params: editForm, headers: { 'x-api-key': adminKey }
       });
-      setAllQuestions(prev => prev.map(q =>
-        q.id === id ? { ...q, ...editForm } : q
-      ));
+      setAllQuestions(prev => prev.map(q => q.id === id ? { ...q, ...editForm } : q));
       setEditingQuestion(null);
       setEditForm({});
       alert('Question updated successfully!');
     } catch (err) {
-      if (err.response?.status === 403) {
-        alert('Invalid API Key! Access denied.');
-      } else {
-        alert('Error updating question!');
-      }
+      alert(err.response?.status === 403 ? 'Invalid API Key! Access denied.' : 'Error updating question!');
     }
   };
 
   const approveSuggestion = async (id, difficulty) => {
-    if (!adminKey) {
-      alert('Please enter admin API key first!');
-      return;
-    }
+    if (!adminKey) { alert('Please enter admin API key first!'); return; }
     try {
       await axios.put(`${API}/questions/${id}`, null, {
-        params: { difficulty: difficulty },
-        headers: { 'x-api-key': adminKey }
+        params: { difficulty }, headers: { 'x-api-key': adminKey }
       });
       setPendingSuggestions(prev => prev.filter(q => q.id !== id));
-      setAllQuestions(prev => prev.map(q =>
-        q.id === id ? { ...q, difficulty: difficulty } : q
-      ));
+      setAllQuestions(prev => prev.map(q => q.id === id ? { ...q, difficulty } : q));
       setApproveDialog(null);
       alert(`Question approved as ${difficulty}! It is now live in the quiz.`);
     } catch (err) {
-      if (err.response?.status === 403) {
-        alert('Invalid API Key! Access denied.');
-      } else {
-        alert('Error approving suggestion!');
-      }
+      alert(err.response?.status === 403 ? 'Invalid API Key! Access denied.' : 'Error approving suggestion!');
     }
   };
 
   const rejectSuggestion = async (id) => {
-    if (!adminKey) {
-      alert('Please enter admin API key first!');
-      return;
-    }
+    if (!adminKey) { alert('Please enter admin API key first!'); return; }
     if (!window.confirm('Permanently delete this suggestion?')) return;
     try {
-      await axios.delete(`${API}/questions/${id}`, {
-        headers: { 'x-api-key': adminKey }
-      });
+      await axios.delete(`${API}/questions/${id}`, { headers: { 'x-api-key': adminKey } });
       setPendingSuggestions(prev => prev.filter(q => q.id !== id));
       setAllQuestions(prev => prev.filter(q => q.id !== id));
       alert('Suggestion rejected and deleted.');
     } catch (err) {
-      if (err.response?.status === 403) {
-        alert('Invalid API Key! Access denied.');
-      } else {
-        alert('Error rejecting suggestion!');
-      }
+      alert(err.response?.status === 403 ? 'Invalid API Key! Access denied.' : 'Error rejecting suggestion!');
     }
   };
 
   const submitSuggestion = async () => {
-    if (!suggestForm.question || !suggestForm.option_a ||
-        !suggestForm.option_b || !suggestForm.option_c ||
-        !suggestForm.option_d || !suggestForm.correct_answer) {
-      alert('Please fill all fields!');
-      return;
+    if (!suggestForm.question || !suggestForm.option_a || !suggestForm.option_b ||
+        !suggestForm.option_c || !suggestForm.option_d || !suggestForm.correct_answer) {
+      alert('Please fill all fields!'); return;
     }
     try {
       await axios.post(`${API}/questions/suggest`, null, {
-        params: {
-          ...suggestForm,
-          suggested_by: playerName || 'Anonymous'
-        }
+        params: { ...suggestForm, suggested_by: playerName || 'Anonymous' }
       });
       setSuggestSuccess(true);
       setSuggestForm({
         question: '', option_a: '', option_b: '',
-        option_c: '', option_d: '', correct_answer: '',
-        category: 'IPL History'
+        option_c: '', option_d: '', correct_answer: '', category: 'IPL History'
       });
-    } catch (err) {
-      alert('Error submitting suggestion!');
-    }
+    } catch (err) { alert('Error submitting suggestion!'); }
   };
 
   const getOptionClass = (opt) => {
-    if (selected === null) return 'option-btn';
-    if (isCorrect === null) return 'option-btn';
+    if (selected === null || isCorrect === null) return 'option-btn';
     const correct = questions[currentQ]?.correct_answer;
     if (opt === correct) return 'option-btn correct';
     if (opt === selected && opt !== correct) return 'option-btn wrong';
     return 'option-btn';
   };
 
-  // LOADING SCREEN
+  // ── LOADING / ERROR ────────────────────────────────────────────────────────
+
   if (loading) return (
     <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
       <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🏏</div>
@@ -353,7 +311,6 @@ function App() {
     </div>
   );
 
-  // ERROR SCREEN
   if (error) return (
     <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
       <div style={{ fontSize: '4rem', marginBottom: '20px' }}>❌</div>
@@ -365,7 +322,105 @@ function App() {
     </div>
   );
 
-  // HOME SCREEN
+  // ── AUTH SCREEN ────────────────────────────────────────────────────────────
+
+  if (screen === 'auth') {
+    document.body.className = 'theme-home';
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🏏 IPL Quiz</h1>
+          <p>Test your IPL knowledge and top the leaderboard!</p>
+        </div>
+        <div className="home-screen">
+
+          {/* Toggle */}
+          <div className="nav" style={{ marginBottom: '25px' }}>
+            <button
+              className={`nav-btn ${authMode === 'login' ? 'active' : ''}`}
+              onClick={() => { setAuthMode('login'); setAuthError(''); }}>
+              🔑 Login
+            </button>
+            <button
+              className={`nav-btn ${authMode === 'register' ? 'active' : ''}`}
+              onClick={() => { setAuthMode('register'); setAuthError(''); }}>
+              🆕 Register
+            </button>
+          </div>
+
+          <input
+            className="name-input"
+            placeholder="Your player name..."
+            value={authName}
+            onChange={e => { setAuthName(e.target.value); setAuthError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAuth()}
+          />
+
+          <input
+            className="name-input"
+            type="password"
+            placeholder={authMode === 'register' ? 'Choose a passkey...' : 'Enter your passkey...'}
+            value={authPasskey}
+            onChange={e => { setAuthPasskey(e.target.value); setAuthError(''); }}
+            onKeyDown={e => e.key === 'Enter' && handleAuth()}
+            style={{ marginTop: '12px' }}
+          />
+
+          {authError && (
+            <p style={{
+              color: '#e74c3c', background: 'rgba(231,76,60,0.1)',
+              border: '1px solid rgba(231,76,60,0.3)',
+              borderRadius: '10px', padding: '10px 15px',
+              marginTop: '12px', fontSize: '0.9rem'
+            }}>
+              ⚠️ {authError}
+            </p>
+          )}
+
+          <button
+            className="btn btn-primary"
+            onClick={handleAuth}
+            disabled={authLoading}
+            style={{ marginTop: '20px', width: '100%' }}>
+            {authLoading
+              ? '⏳ Please wait...'
+              : authMode === 'register' ? '🚀 Create Account' : '🔑 Login'}
+          </button>
+
+          {authMode === 'login' && (
+            <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '15px' }}>
+              New here?{' '}
+              <span
+                style={{ color: '#f5a623', cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => { setAuthMode('register'); setAuthError(''); }}>
+                Register instead
+              </span>
+            </p>
+          )}
+          {authMode === 'register' && (
+            <p style={{ color: '#aaa', fontSize: '0.85rem', marginTop: '15px' }}>
+              Already have an account?{' '}
+              <span
+                style={{ color: '#f5a623', cursor: 'pointer', textDecoration: 'underline' }}
+                onClick={() => { setAuthMode('login'); setAuthError(''); }}>
+                Login instead
+              </span>
+            </p>
+          )}
+
+          <button
+            className="btn btn-secondary"
+            onClick={() => loadLeaderboard('IPL History')}
+            style={{ marginTop: '10px' }}>
+            🏆 View Leaderboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── HOME SCREEN ────────────────────────────────────────────────────────────
+
   document.body.className = screen === 'home' ? 'theme-home' :
                              screen === 'analytics' ? 'theme-analytics' :
                              document.body.className;
@@ -374,28 +429,18 @@ function App() {
     <div className="app">
       <div className="header">
         <h1>🏏 IPL Quiz</h1>
-        <p>Test your IPL knowledge and top the leaderboard!</p>
+        <p>Welcome back, <strong>{playerName}</strong>! 🎉</p>
       </div>
       <div className="home-screen">
-        <input
-          className="name-input"
-          placeholder="Enter your name to start..."
-          value={playerName}
-          onChange={e => setPlayerName(e.target.value)}
-        />
-        {playerName.trim() && (
-          <>
-            <h3 style={{ marginBottom: '15px' }}>Select a Category</h3>
-            <div className="category-buttons">
-              <button className="category-btn" onClick={() => startQuiz('IPL History')}>
-                🏆 IPL History
-              </button>
-              <button className="category-btn" onClick={() => startQuiz('Player Records')}>
-                🌟 Player Records
-              </button>
-            </div>
-          </>
-        )}
+        <h3 style={{ marginBottom: '15px' }}>Select a Category</h3>
+        <div className="category-buttons">
+          <button className="category-btn" onClick={() => startQuiz('IPL History')}>
+            🏆 IPL History
+          </button>
+          <button className="category-btn" onClick={() => startQuiz('Player Records')}>
+            🌟 Player Records
+          </button>
+        </div>
         <br />
         <button className="btn btn-secondary" onClick={() => loadLeaderboard('IPL History')}>
           🏆 View Leaderboard
@@ -403,20 +448,22 @@ function App() {
         <button className="btn btn-secondary" onClick={loadAllQuestions}>
           🔐 Admin Panel
         </button>
+        <button className="btn btn-secondary"
+          onClick={() => { setScreen('auth'); setAuthName(''); setAuthPasskey(''); setAuthError(''); }}>
+          🚪 Logout
+        </button>
       </div>
     </div>
   );
 
-  // QUIZ SCREEN
+  // ── QUIZ SCREEN (unchanged) ────────────────────────────────────────────────
+
   if (screen === 'quiz') {
     const q = questions[currentQ];
     if (selected === null) document.body.className = 'theme-neutral';
-
     return (
       <div className="app">
-        <div className="header">
-          <h1>🏏 IPL Quiz</h1>
-        </div>
+        <div className="header"><h1>🏏 IPL Quiz</h1></div>
         <div className="quiz-screen">
           <div className="quiz-header">
             <span className="progress">Q {currentQ + 1} of {questions.length}</span>
@@ -425,12 +472,10 @@ function App() {
               {streak >= 3 ? `🔥 ${streak} Streak!` : `Streak: ${streak}`}
             </span>
           </div>
-
           <div className="progress-bar">
             <div className="progress-fill"
               style={{ width: `${(currentQ / questions.length) * 100}%` }} />
           </div>
-
           <div className={`question-card ${
             selected === null ? 'new-question' :
             isCorrect === null ? '' :
@@ -442,37 +487,27 @@ function App() {
             <p className="question-text">{q?.question}</p>
             <div className="options">
               {['A', 'B', 'C', 'D'].map(opt => (
-                <button
-                  key={opt}
-                  className={getOptionClass(opt)}
-                  onClick={() => handleAnswer(opt)}
-                  disabled={selected !== null}
-                >
+                <button key={opt} className={getOptionClass(opt)}
+                  onClick={() => handleAnswer(opt)} disabled={selected !== null}>
                   <strong>{opt})</strong>{' '}{q?.[`option_${opt.toLowerCase()}`]}
                 </button>
               ))}
             </div>
           </div>
-
           {waitingForApi && (
             <div style={{ textAlign: 'center', marginTop: '15px' }}>
               <p style={{ color: '#f5a623' }}>Checking answer...</p>
             </div>
           )}
-
           {selected && isCorrect !== null && (
             <div className={`result-banner ${isCorrect ? 'correct' : 'wrong'}`}>
               {isCorrect ? '🎉 Correct! Well done!'
                 : `❌ Wrong! The answer was ${questions[currentQ]?.correct_answer}`}
             </div>
           )}
-
           {funFact && (
-            <div className="fun-fact">
-              <span>💡 Fun Fact: </span>{funFact}
-            </div>
+            <div className="fun-fact"><span>💡 Fun Fact: </span>{funFact}</div>
           )}
-
           {selected && isCorrect !== null && (
             <div style={{ textAlign: 'center', marginTop: '20px' }}>
               <button className="btn btn-primary" onClick={nextQuestion}>
@@ -485,17 +520,14 @@ function App() {
     );
   }
 
-  // RESULTS SCREEN
+  // ── RESULTS SCREEN (unchanged) ─────────────────────────────────────────────
+
   if (screen === 'results') {
     const avgTime = times.length > 0
-      ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1)
-      : 0;
-
+      ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : 0;
     return (
       <div className="app">
-        <div className="header">
-          <h1>🏏 IPL Quiz</h1>
-        </div>
+        <div className="header"><h1>🏏 IPL Quiz</h1></div>
         <div className="results-screen">
           <h2>Quiz Complete, {playerName}! 🎉</h2>
           <div className="score-circle">
@@ -503,18 +535,9 @@ function App() {
             <p>Score</p>
           </div>
           <div className="stats-grid">
-            <div className="stat-card">
-              <h3>⏱️ {avgTime}s</h3>
-              <p>Avg Time Per Question</p>
-            </div>
-            <div className="stat-card">
-              <h3>🔥 {bestStreak}</h3>
-              <p>Best Streak</p>
-            </div>
-            <div className="stat-card">
-              <h3>🎯 {playerStats?.accuracy}%</h3>
-              <p>Overall Accuracy</p>
-            </div>
+            <div className="stat-card"><h3>⏱️ {avgTime}s</h3><p>Avg Time Per Question</p></div>
+            <div className="stat-card"><h3>🔥 {bestStreak}</h3><p>Best Streak</p></div>
+            <div className="stat-card"><h3>🎯 {playerStats?.accuracy}%</h3><p>Overall Accuracy</p></div>
           </div>
           {playerStats && (
             <div className="question-card" style={{ textAlign: 'left' }}>
@@ -526,12 +549,8 @@ function App() {
             </div>
           )}
           <div>
-            <button className="btn btn-primary" onClick={() => startQuiz(category)}>
-              Play Again 🔄
-            </button>
-            <button className="btn btn-secondary" onClick={() => setScreen('home')}>
-              Home 🏠
-            </button>
+            <button className="btn btn-primary" onClick={() => startQuiz(category)}>Play Again 🔄</button>
+            <button className="btn btn-secondary" onClick={() => setScreen('home')}>Home 🏠</button>
             <button className="btn btn-secondary" onClick={() => loadLeaderboard('IPL History')}>
               Leaderboard 🏆
             </button>
@@ -545,41 +564,29 @@ function App() {
           </div>
         </div>
 
-        {/* SUGGEST MODAL */}
         {showSuggest && (
           <div style={{
-            position: 'fixed', top: 0, left: 0,
-            width: '100%', height: '100%',
-            background: 'rgba(0,0,0,0.8)',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', zIndex: 1000
+            position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+            background: 'rgba(0,0,0,0.8)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
           }}>
             <div style={{
-              background: '#16213e', borderRadius: '20px',
-              padding: '30px', width: '90%', maxWidth: '500px',
-              maxHeight: '80vh', overflowY: 'auto'
+              background: '#16213e', borderRadius: '20px', padding: '30px',
+              width: '90%', maxWidth: '500px', maxHeight: '80vh', overflowY: 'auto'
             }}>
               <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
                 💡 Suggest a Question
               </h3>
-
               {suggestSuccess ? (
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: '3rem' }}>🎉</div>
-                  <h3 style={{ color: '#2ecc71', margin: '15px 0' }}>
-                    Suggestion Submitted!
-                  </h3>
-                  <p style={{ color: '#aaa', marginBottom: '20px' }}>
-                    Admin will review your question. Thanks!
-                  </p>
-                  <button className="btn btn-primary" onClick={() => setShowSuggest(false)}>
-                    Close
-                  </button>
+                  <h3 style={{ color: '#2ecc71', margin: '15px 0' }}>Suggestion Submitted!</h3>
+                  <p style={{ color: '#aaa', marginBottom: '20px' }}>Admin will review. Thanks!</p>
+                  <button className="btn btn-primary" onClick={() => setShowSuggest(false)}>Close</button>
                 </div>
               ) : (
                 <div>
-                  <select
-                    value={suggestForm.category}
+                  <select value={suggestForm.category}
                     onChange={e => setSuggestForm(prev => ({ ...prev, category: e.target.value }))}
                     style={{
                       width: '100%', padding: '12px', borderRadius: '10px',
@@ -590,28 +597,19 @@ function App() {
                     <option value="IPL History">🏆 IPL History</option>
                     <option value="Player Records">🌟 Player Records</option>
                   </select>
-
-                  <input className="name-input"
-                    placeholder="Enter your question..."
+                  <input className="name-input" placeholder="Enter your question..."
                     value={suggestForm.question}
                     onChange={e => setSuggestForm(prev => ({ ...prev, question: e.target.value }))}
                     style={{ textAlign: 'left', width: '100%', marginBottom: '10px' }} />
-
                   {['a', 'b', 'c', 'd'].map(opt => (
                     <input key={opt} className="name-input"
                       placeholder={`Option ${opt.toUpperCase()}`}
                       value={suggestForm[`option_${opt}`]}
-                      onChange={e => setSuggestForm(prev => ({
-                        ...prev, [`option_${opt}`]: e.target.value
-                      }))}
+                      onChange={e => setSuggestForm(prev => ({ ...prev, [`option_${opt}`]: e.target.value }))}
                       style={{ textAlign: 'left', width: '100%', marginBottom: '10px' }} />
                   ))}
-
-                  <select
-                    value={suggestForm.correct_answer}
-                    onChange={e => setSuggestForm(prev => ({
-                      ...prev, correct_answer: e.target.value
-                    }))}
+                  <select value={suggestForm.correct_answer}
+                    onChange={e => setSuggestForm(prev => ({ ...prev, correct_answer: e.target.value }))}
                     style={{
                       width: '100%', padding: '12px', borderRadius: '10px',
                       background: '#0f3460', color: 'white',
@@ -619,12 +617,8 @@ function App() {
                       marginBottom: '20px', fontSize: '1rem'
                     }}>
                     <option value="">Select Correct Answer</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
+                    {['A','B','C','D'].map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
-
                   <div style={{ textAlign: 'center' }}>
                     <button className="btn btn-primary" onClick={submitSuggestion}>
                       Submit Suggestion ✅
@@ -642,24 +636,21 @@ function App() {
     );
   }
 
-  // ANALYTICS SCREEN
+  // ── ANALYTICS SCREEN (unchanged) ──────────────────────────────────────────
+
   if (screen === 'analytics') {
     document.body.className = 'theme-analytics';
     const pieData = [
       { name: 'Correct', value: questionStats.reduce((a, q) => a + q.correct_attempts, 0) },
-      { name: 'Wrong', value: questionStats.reduce((a, q) => a + (q.total_attempts - q.correct_attempts), 0) }
+      { name: 'Wrong',   value: questionStats.reduce((a, q) => a + (q.total_attempts - q.correct_attempts), 0) }
     ];
     const COLORS = ['#2ecc71', '#e74c3c'];
-
     return (
       <div className="app">
-        <div className="header">
-          <h1>🏏 IPL Quiz</h1>
-        </div>
+        <div className="header"><h1>🏏 IPL Quiz</h1></div>
         <div style={{ padding: '20px 0' }}>
           <h2 style={{ textAlign: 'center', color: '#f5a623' }}>📊 Question Analytics</h2>
           <h4 style={{ textAlign: 'center', color: '#aaa', marginBottom: '30px' }}>{category}</h4>
-
           <div className="question-card" style={{ marginBottom: '30px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
               Overall Correct vs Wrong
@@ -668,16 +659,12 @@ function App() {
               <PieChart>
                 <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value"
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                  {pieData.map((entry, index) => (
-                    <Cell key={index} fill={COLORS[index]} />
-                  ))}
+                  {pieData.map((_, index) => <Cell key={index} fill={COLORS[index]} />)}
                 </Pie>
-                <Tooltip />
-                <Legend />
+                <Tooltip /><Legend />
               </PieChart>
             </ResponsiveContainer>
           </div>
-
           <div className="question-card" style={{ marginBottom: '30px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
               Accuracy Per Question
@@ -708,7 +695,6 @@ function App() {
               <span style={{ color: '#e74c3c' }}>🔴 Hard</span>
             </div>
           </div>
-
           <div className="question-card">
             <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>Question Breakdown</h3>
             {questionStats.map((q, i) => (
@@ -718,13 +704,9 @@ function App() {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontWeight: 'bold' }}>Q{i + 1}</span>
-                  <span className={`difficulty-badge ${q.difficulty}`}>
-                    {q.difficulty.toUpperCase()}
-                  </span>
+                  <span className={`difficulty-badge ${q.difficulty}`}>{q.difficulty.toUpperCase()}</span>
                 </div>
-                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>
-                  {q.question}
-                </p>
+                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>{q.question}</p>
                 <div style={{ background: '#1a1a2e', borderRadius: '5px', overflow: 'hidden', height: '20px' }}>
                   <div style={{
                     width: `${q.accuracy}%`, height: '100%',
@@ -741,84 +723,54 @@ function App() {
               </div>
             ))}
           </div>
-
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button className="btn btn-secondary" onClick={() => setScreen('results')}>
-              ← Back to Results
-            </button>
-            <button className="btn btn-primary" onClick={() => setScreen('home')}>
-              Home 🏠
-            </button>
+            <button className="btn btn-secondary" onClick={() => setScreen('results')}>← Back to Results</button>
+            <button className="btn btn-primary" onClick={() => setScreen('home')}>Home 🏠</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ADMIN SCREEN
+  // ── ADMIN SCREEN (unchanged) ───────────────────────────────────────────────
+
   if (screen === 'admin') {
     document.body.className = 'theme-home';
     return (
       <div className="app">
-        <div className="header">
-          <h1>🏏 IPL Quiz</h1>
-        </div>
+        <div className="header"><h1>🏏 IPL Quiz</h1></div>
         <div style={{ padding: '20px 0' }}>
           <h2 style={{ textAlign: 'center', color: '#f5a623' }}>🔐 Admin Panel</h2>
-
-          {/* API KEY INPUT */}
           <div className="question-card" style={{ marginBottom: '20px' }}>
-            <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
-              Admin API Key (required for all actions)
-            </h3>
-            <input
-              className="name-input"
-              type="password"
+            <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>Admin API Key (required for all actions)</h3>
+            <input className="name-input" type="password"
               placeholder="Enter Admin API Key..."
-              value={adminKey}
-              onChange={e => setAdminKey(e.target.value)}
-              style={{ textAlign: 'left', width: '100%' }}
-            />
-            {adminKey && (
-              <p style={{ color: '#2ecc71', fontSize: '0.85rem', marginTop: '8px' }}>
-                ✅ API key entered
-              </p>
-            )}
+              value={adminKey} onChange={e => setAdminKey(e.target.value)}
+              style={{ textAlign: 'left', width: '100%' }} />
+            {adminKey && <p style={{ color: '#2ecc71', fontSize: '0.85rem', marginTop: '8px' }}>✅ API key entered</p>}
           </div>
-
-          {/* TABS */}
           <div className="nav" style={{ marginBottom: '20px' }}>
-            <button
-              className={`nav-btn ${adminTab === 'questions' ? 'active' : ''}`}
+            <button className={`nav-btn ${adminTab === 'questions' ? 'active' : ''}`}
               onClick={() => setAdminTab('questions')}>
               📋 All Questions ({allQuestions.filter(q => q.difficulty !== 'pending').length})
             </button>
-            <button
-              className={`nav-btn ${adminTab === 'suggestions' ? 'active' : ''}`}
+            <button className={`nav-btn ${adminTab === 'suggestions' ? 'active' : ''}`}
               onClick={() => { setAdminTab('suggestions'); loadSuggestions(); }}>
               💡 Suggestions
               {pendingSuggestions.length > 0 && (
                 <span style={{
-                  background: '#e74c3c', color: 'white',
-                  borderRadius: '50%', fontSize: '0.75rem',
-                  padding: '2px 7px', marginLeft: '8px'
-                }}>
-                  {pendingSuggestions.length}
-                </span>
+                  background: '#e74c3c', color: 'white', borderRadius: '50%',
+                  fontSize: '0.75rem', padding: '2px 7px', marginLeft: '8px'
+                }}>{pendingSuggestions.length}</span>
               )}
             </button>
           </div>
-
-          {/* SUGGESTIONS TAB */}
           {adminTab === 'suggestions' && (
             <div className="question-card">
-              <h3 style={{ color: '#f5a623', marginBottom: '5px' }}>
-                💡 Pending Suggestions
-              </h3>
+              <h3 style={{ color: '#f5a623', marginBottom: '5px' }}>💡 Pending Suggestions</h3>
               <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '20px' }}>
                 Approve or reject user-submitted questions. API key required.
               </p>
-
               {pendingSuggestions.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px 0' }}>
                   <div style={{ fontSize: '3rem' }}>🎉</div>
@@ -828,30 +780,19 @@ function App() {
                 pendingSuggestions.map((q) => (
                   <div key={q.id} style={{
                     marginBottom: '20px', padding: '15px',
-                    background: '#1a0a00', borderRadius: '10px',
-                    border: '1px solid #f39c12'
+                    background: '#1a0a00', borderRadius: '10px', border: '1px solid #f39c12'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                      <span style={{ color: '#f39c12', fontWeight: 'bold', fontSize: '0.85rem' }}>
-                        {q.category}
-                      </span>
-                      <span style={{ color: '#aaa', fontSize: '0.8rem' }}>
-                        {q.fun_fact}
-                      </span>
+                      <span style={{ color: '#f39c12', fontWeight: 'bold', fontSize: '0.85rem' }}>{q.category}</span>
+                      <span style={{ color: '#aaa', fontSize: '0.8rem' }}>{q.fun_fact}</span>
                     </div>
-
-                    <p style={{ color: 'white', fontWeight: 'bold', marginBottom: '12px' }}>
-                      {q.question}
-                    </p>
-
+                    <p style={{ color: 'white', fontWeight: 'bold', marginBottom: '12px' }}>{q.question}</p>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
                       {['a', 'b', 'c', 'd'].map(opt => (
                         <div key={opt} style={{
                           padding: '8px 12px', borderRadius: '8px', fontSize: '0.85rem',
-                          background: q.correct_answer === opt.toUpperCase()
-                            ? 'rgba(46,204,113,0.2)' : '#0f3460',
-                          border: q.correct_answer === opt.toUpperCase()
-                            ? '1px solid #2ecc71' : '1px solid transparent',
+                          background: q.correct_answer === opt.toUpperCase() ? 'rgba(46,204,113,0.2)' : '#0f3460',
+                          border: q.correct_answer === opt.toUpperCase() ? '1px solid #2ecc71' : '1px solid transparent',
                           color: q.correct_answer === opt.toUpperCase() ? '#2ecc71' : '#ccc'
                         }}>
                           {opt.toUpperCase()}. {q[`option_${opt}`]}
@@ -859,39 +800,29 @@ function App() {
                         </div>
                       ))}
                     </div>
-
-                    {/* APPROVE DIALOG */}
                     {approveDialog === q.id ? (
-                      <div style={{
-                        background: '#0f3460', borderRadius: '10px',
-                        padding: '15px', marginTop: '10px'
-                      }}>
+                      <div style={{ background: '#0f3460', borderRadius: '10px', padding: '15px', marginTop: '10px' }}>
                         <p style={{ color: '#f5a623', marginBottom: '10px', fontWeight: 'bold' }}>
                           Set difficulty before approving:
                         </p>
                         <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
                           {['easy', 'medium', 'hard'].map(d => (
-                            <button key={d} onClick={() => setApproveDifficulty(d)}
-                              style={{
-                                padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
-                                border: approveDifficulty === d ? '2px solid #f5a623' : '1px solid #aaa',
-                                background: approveDifficulty === d ? 'rgba(245,166,35,0.2)' : 'transparent',
-                                color: approveDifficulty === d ? '#f5a623' : '#aaa',
-                                fontWeight: approveDifficulty === d ? 'bold' : 'normal'
-                              }}>
+                            <button key={d} onClick={() => setApproveDifficulty(d)} style={{
+                              padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
+                              border: approveDifficulty === d ? '2px solid #f5a623' : '1px solid #aaa',
+                              background: approveDifficulty === d ? 'rgba(245,166,35,0.2)' : 'transparent',
+                              color: approveDifficulty === d ? '#f5a623' : '#aaa',
+                              fontWeight: approveDifficulty === d ? 'bold' : 'normal'
+                            }}>
                               {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {d.charAt(0).toUpperCase() + d.slice(1)}
                             </button>
                           ))}
                         </div>
                         <div>
-                          <button className="btn btn-primary"
-                            onClick={() => approveSuggestion(q.id, approveDifficulty)}>
+                          <button className="btn btn-primary" onClick={() => approveSuggestion(q.id, approveDifficulty)}>
                             ✅ Confirm Approve
                           </button>
-                          <button className="btn btn-secondary"
-                            onClick={() => setApproveDialog(null)}>
-                            Cancel
-                          </button>
+                          <button className="btn btn-secondary" onClick={() => setApproveDialog(null)}>Cancel</button>
                         </div>
                       </div>
                     ) : (
@@ -900,8 +831,7 @@ function App() {
                           onClick={() => { setApproveDialog(q.id); setApproveDifficulty('medium'); }}>
                           ✅ Approve
                         </button>
-                        <button className="btn"
-                          style={{ background: '#e74c3c', color: 'white' }}
+                        <button className="btn" style={{ background: '#e74c3c', color: 'white' }}
                           onClick={() => rejectSuggestion(q.id)}>
                           🗑️ Reject
                         </button>
@@ -912,28 +842,21 @@ function App() {
               )}
             </div>
           )}
-
-          {/* ALL QUESTIONS TAB */}
           {adminTab === 'questions' && (
             <div className="question-card">
               <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
                 All Questions ({allQuestions.filter(q => q.difficulty !== 'pending').length})
               </h3>
               {allQuestions.filter(q => q.difficulty !== 'pending').map((q, i) => (
-                <div key={q.id} style={{
-                  marginBottom: '20px', padding: '15px',
-                  background: '#0f3460', borderRadius: '10px'
-                }}>
+                <div key={q.id} style={{ marginBottom: '20px', padding: '15px', background: '#0f3460', borderRadius: '10px' }}>
                   {editingQuestion === q.id ? (
                     <div>
                       <p style={{ color: '#f5a623', marginBottom: '10px' }}>Editing Q{i + 1}</p>
-                      <input className="name-input" defaultValue={q.question}
-                        placeholder="Question text"
+                      <input className="name-input" defaultValue={q.question} placeholder="Question text"
                         onChange={e => setEditForm(prev => ({ ...prev, question_text: e.target.value }))}
                         style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
                       {['a', 'b', 'c', 'd'].map(opt => (
-                        <input key={opt} className="name-input"
-                          defaultValue={q[`option_${opt}`]}
+                        <input key={opt} className="name-input" defaultValue={q[`option_${opt}`]}
                           placeholder={`Option ${opt.toUpperCase()}`}
                           onChange={e => setEditForm(prev => ({ ...prev, [`option_${opt}`]: e.target.value }))}
                           style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
@@ -942,51 +865,34 @@ function App() {
                         placeholder="Correct Answer (A/B/C/D)"
                         onChange={e => setEditForm(prev => ({ ...prev, correct_answer: e.target.value }))}
                         style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
-                      <input className="name-input" defaultValue={q.fun_fact}
-                        placeholder="Fun fact"
+                      <input className="name-input" defaultValue={q.fun_fact} placeholder="Fun fact"
                         onChange={e => setEditForm(prev => ({ ...prev, fun_fact: e.target.value }))}
                         style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
                       <div>
-                        <button className="btn btn-primary" onClick={() => updateQuestion(q.id)}>
-                          ✅ Save Changes
-                        </button>
+                        <button className="btn btn-primary" onClick={() => updateQuestion(q.id)}>✅ Save Changes</button>
                         <button className="btn btn-secondary"
-                          onClick={() => { setEditingQuestion(null); setEditForm({}); }}>
-                          Cancel
-                        </button>
+                          onClick={() => { setEditingQuestion(null); setEditForm({}); }}>Cancel</button>
                       </div>
                     </div>
                   ) : (
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
-                          Q{i + 1} — {q.category}
-                        </span>
-                        <span className={`difficulty-badge ${q.difficulty}`}>
-                          {q.difficulty?.toUpperCase()}
-                        </span>
+                        <span style={{ fontWeight: 'bold', color: '#f5a623' }}>Q{i + 1} — {q.category}</span>
+                        <span className={`difficulty-badge ${q.difficulty}`}>{q.difficulty?.toUpperCase()}</span>
                       </div>
                       <p style={{ color: 'white', marginBottom: '10px' }}>{q.question}</p>
                       <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
                         ✅ Answer: {q.correct_answer} &nbsp;|&nbsp; 👥 {q.total_attempts} attempts
                       </p>
                       {q.fun_fact && (
-                        <p style={{ color: '#f5a623', fontSize: '0.85rem', marginTop: '5px' }}>
-                          💡 {q.fun_fact}
-                        </p>
+                        <p style={{ color: '#f5a623', fontSize: '0.85rem', marginTop: '5px' }}>💡 {q.fun_fact}</p>
                       )}
                       <div style={{ marginTop: '10px' }}>
                         <button className="btn btn-secondary"
-                          onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>
-                          ✏️ Edit
-                        </button>
+                          onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>✏️ Edit</button>
                         <button className="btn"
                           style={{ background: '#e74c3c', color: 'white', margin: '8px' }}
-                          onClick={() => {
-                            if (window.confirm(`Delete "${q.question}"?`)) {
-                              deleteQuestion(q.id);
-                            }
-                          }}>
+                          onClick={() => { if (window.confirm(`Delete "${q.question}"?`)) deleteQuestion(q.id); }}>
                           🗑️ Delete
                         </button>
                       </div>
@@ -996,63 +902,47 @@ function App() {
               ))}
             </div>
           )}
-
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button className="btn btn-primary" onClick={() => setScreen('home')}>
-              ← Back to Home
-            </button>
+            <button className="btn btn-primary" onClick={() => setScreen('home')}>← Back to Home</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // LEADERBOARD SCREEN
+  // ── LEADERBOARD SCREEN (unchanged) ────────────────────────────────────────
+
   if (screen === 'leaderboard') return (
     <div className="app">
-      <div className="header">
-        <h1>🏏 IPL Quiz</h1>
-      </div>
+      <div className="header"><h1>🏏 IPL Quiz</h1></div>
       <div className="leaderboard-screen">
         <h2 style={{ textAlign: 'center', color: '#f5a623' }}>🏆 Global Leaderboard</h2>
         <div className="nav" style={{ marginTop: '20px' }}>
-          <button
-            className={`nav-btn ${leaderboardCategory === 'IPL History' ? 'active' : ''}`}
-            onClick={() => loadLeaderboard('IPL History')}>
-            🏆 IPL History
-          </button>
-          <button
-            className={`nav-btn ${leaderboardCategory === 'Player Records' ? 'active' : ''}`}
-            onClick={() => loadLeaderboard('Player Records')}>
-            🌟 Player Records
-          </button>
+          <button className={`nav-btn ${leaderboardCategory === 'IPL History' ? 'active' : ''}`}
+            onClick={() => loadLeaderboard('IPL History')}>🏆 IPL History</button>
+          <button className={`nav-btn ${leaderboardCategory === 'Player Records' ? 'active' : ''}`}
+            onClick={() => loadLeaderboard('Player Records')}>🌟 Player Records</button>
         </div>
-
         <h3 style={{ textAlign: 'center', color: '#aaa', marginBottom: '15px', marginTop: '10px' }}>
           {leaderboardCategory}
         </h3>
-
         {leaderboard.length === 0 ? (
           <p style={{ textAlign: 'center', color: '#aaa', marginTop: '30px' }}>
-            No scores yet for this category — be the first! 🏏
+            No scores yet — be the first! 🏏
           </p>
         ) : (
           <table className="leaderboard-table">
             <thead>
               <tr>
-                <th>Rank</th>
-                <th>Player</th>
-                <th>Best Score</th>
-                <th>Avg Time</th>
-                <th>Best Streak</th>
+                <th>Rank</th><th>Player</th><th>Best Score</th>
+                <th>Avg Time</th><th>Best Streak</th>
               </tr>
             </thead>
             <tbody>
               {leaderboard.map((player) => (
                 <tr key={player.rank}>
                   <td className={`rank-${player.rank}`}>
-                    {player.rank === 1 ? '🥇' :
-                     player.rank === 2 ? '🥈' :
+                    {player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' :
                      player.rank === 3 ? '🥉' : `#${player.rank}`}
                   </td>
                   <td>{player.name}</td>
@@ -1064,14 +954,9 @@ function App() {
             </tbody>
           </table>
         )}
-
         <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <button className="btn btn-secondary" onClick={() => setScreen('results')}>
-            ← Back to Results
-          </button>
-          <button className="btn btn-primary" onClick={() => setScreen('home')}>
-            Play Quiz 🏏
-          </button>
+          <button className="btn btn-secondary" onClick={() => setScreen('results')}>← Back to Results</button>
+          <button className="btn btn-primary" onClick={() => setScreen('home')}>Play Quiz 🏏</button>
         </div>
       </div>
     </div>

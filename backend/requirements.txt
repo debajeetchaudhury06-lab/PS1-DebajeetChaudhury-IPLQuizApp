@@ -3,4 +3,4 @@ uvicorn
 sqlalchemy
 psycopg2-binary
 python-dotenv
-pip freeze | grep bcrypt >> requirements.txt
+bcrypt
