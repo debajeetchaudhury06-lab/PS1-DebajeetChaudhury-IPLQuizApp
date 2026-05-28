@@ -218,9 +218,14 @@ function App() {
   };
 
   const updateQuestion = async (id) => {
+    if (!adminKey) {
+      alert('Please enter admin API key first!');
+      return;
+    }
     try {
       await axios.put(`${API}/questions/${id}`, null, {
-        params: editForm
+        params: editForm,
+        headers: { 'x-api-key': adminKey }
       });
       setAllQuestions(prev => prev.map(q =>
         q.id === id ? { ...q, ...editForm } : q
@@ -229,7 +234,11 @@ function App() {
       setEditForm({});
       alert('Question updated successfully!');
     } catch (err) {
-      alert('Error updating question!');
+      if (err.response?.status === 403) {
+        alert('Invalid API Key! Access denied.');
+      } else {
+        alert('Error updating question!');
+      }
     }
   };
 

@@ -71,6 +71,7 @@ def submit_answer(
     }
 
 @router.put("/{question_id}")
+@router.put("/{question_id}")
 def update_question(
     question_id: int,
     question_text: str = None,
@@ -80,8 +81,10 @@ def update_question(
     option_d: str = None,
     correct_answer: str = None,
     fun_fact: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    x_api_key: str = Header(...)
 ):
+    verify_admin(x_api_key)
     question = db.query(Question).filter(
         Question.id == question_id
     ).first()
