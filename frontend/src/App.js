@@ -44,6 +44,10 @@ const [editForm, setEditForm] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [waitingForApi, setWaitingForApi] = useState(false);
+  const [adminKey, setAdminKey] = useState('');
+const [allQuestions, setAllQuestions] = useState([]);
+const [editingQuestion, setEditingQuestion] = useState(null);
+const [editForm, setEditForm] = useState({});
 
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null || waitingForApi) return;
