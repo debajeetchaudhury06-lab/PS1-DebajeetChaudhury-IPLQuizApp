@@ -19,6 +19,11 @@ const questionThemes = [
 ];
 
 function App() {
+  const [adminKey, setAdminKey] = useState('');
+const [adminMode, setAdminMode] = useState(false);
+const [allQuestions, setAllQuestions] = useState([]);
+const [editingQuestion, setEditingQuestion] = useState(null);
+const [editForm, setEditForm] = useState({});
   const [screen, setScreen] = useState('home');
   const [playerName, setPlayerName] = useState('');
   const [category, setCategory] = useState('');
@@ -183,6 +188,52 @@ function App() {
     setScreen('leaderboard');
   };
 
+  const loadAllQuestions = async () => {
+    try {
+      const res = await axios.get(`${API}/questions/all`);
+      setAllQuestions(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+    setScreen('admin');
+  };
+
+  const deleteQuestion = async (id) => {
+    if (!adminKey) {
+      alert('Please enter admin API key first!');
+      return;
+    }
+    try {
+      await axios.delete(`${API}/questions/${id}`, {
+        headers: { 'x-api-key': adminKey }
+      });
+      setAllQuestions(prev => prev.filter(q => q.id !== id));
+      alert('Question deleted successfully!');
+    } catch (err) {
+      if (err.response?.status === 403) {
+        alert('Invalid API Key! Access denied.');
+      } else {
+        alert('Error deleting question!');
+      }
+    }
+  };
+
+  const updateQuestion = async (id) => {
+    try {
+      await axios.put(`${API}/questions/${id}`, null, {
+        params: editForm
+      });
+      setAllQuestions(prev => prev.map(q =>
+        q.id === id ? { ...q, ...editForm } : q
+      ));
+      setEditingQuestion(null);
+      setEditForm({});
+      alert('Question updated successfully!');
+    } catch (err) {
+      alert('Error updating question!');
+    }
+  };
+
   const getOptionClass = (opt) => {
     if (selected === null) return 'option-btn';
     if (isCorrect === null) return 'option-btn'; // Still waiting for API
@@ -260,6 +311,10 @@ function App() {
           onClick={() => loadLeaderboard('IPL History')}>
           🏆 View Leaderboard
         </button>
+        <button className="btn btn-secondary"
+  onClick={loadAllQuestions}>
+  🔐 Admin Panel
+</button>
       </div>
     </div>
   );
@@ -565,6 +620,159 @@ function App() {
     );
   }
 
+  // ADMIN SCREEN
+  if (screen === 'admin') {
+    document.body.className = 'theme-home';
+    return (
+      <div className="app">
+        <div className="header">
+          <h1>🏏 IPL Quiz</h1>
+        </div>
+        <div style={{ padding: '20px 0' }}>
+          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
+            🔐 Admin Panel
+          </h2>
+
+          {/* API Key Input */}
+          <div className="question-card" style={{ marginBottom: '20px' }}>
+            <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
+              Admin API Key (required for delete)
+            </h3>
+            <input
+              className="name-input"
+              type="password"
+              placeholder="Enter Admin API Key..."
+              value={adminKey}
+              onChange={e => setAdminKey(e.target.value)}
+              style={{ textAlign: 'left', width: '100%' }}
+            />
+          </div>
+
+          {/* Questions List */}
+          <div className="question-card">
+            <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
+              All Questions ({allQuestions.length})
+            </h3>
+            {allQuestions.map((q, i) => (
+              <div key={q.id} style={{
+                marginBottom: '20px', padding: '15px',
+                background: '#0f3460', borderRadius: '10px'
+              }}>
+                {editingQuestion === q.id ? (
+                  // EDIT FORM
+                  <div>
+                    <p style={{ color: '#f5a623', marginBottom: '10px' }}>
+                      Editing Q{i + 1}
+                    </p>
+                    <input
+                      className="name-input"
+                      defaultValue={q.question}
+                      placeholder="Question text"
+                      onChange={e => setEditForm(prev => ({
+                        ...prev, question_text: e.target.value
+                      }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
+                    />
+                    {['a', 'b', 'c', 'd'].map(opt => (
+                      <input
+                        key={opt}
+                        className="name-input"
+                        defaultValue={q[`option_${opt}`]}
+                        placeholder={`Option ${opt.toUpperCase()}`}
+                        onChange={e => setEditForm(prev => ({
+                          ...prev, [`option_${opt}`]: e.target.value
+                        }))}
+                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
+                      />
+                    ))}
+                    <input
+                      className="name-input"
+                      defaultValue={q.correct_answer}
+                      placeholder="Correct Answer (A/B/C/D)"
+                      onChange={e => setEditForm(prev => ({
+                        ...prev, correct_answer: e.target.value
+                      }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
+                    />
+                    <input
+                      className="name-input"
+                      defaultValue={q.fun_fact}
+                      placeholder="Fun fact"
+                      onChange={e => setEditForm(prev => ({
+                        ...prev, fun_fact: e.target.value
+                      }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
+                    />
+                    <div>
+                      <button className="btn btn-primary"
+                        onClick={() => updateQuestion(q.id)}>
+                        ✅ Save Changes
+                      </button>
+                      <button className="btn btn-secondary"
+                        onClick={() => {
+                          setEditingQuestion(null);
+                          setEditForm({});
+                        }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // QUESTION VIEW
+                  <div>
+                    <div style={{
+                      display: 'flex', justifyContent: 'space-between',
+                      marginBottom: '8px', alignItems: 'center'
+                    }}>
+                      <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
+                        Q{i + 1} — {q.category}
+                      </span>
+                      <span className={`difficulty-badge ${q.difficulty}`}>
+                        {q.difficulty?.toUpperCase()}
+                      </span>
+                    </div>
+                    <p style={{ color: 'white', marginBottom: '10px' }}>
+                      {q.question}
+                    </p>
+                    <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
+                      ✅ Answer: {q.correct_answer} &nbsp;|&nbsp;
+                      👥 {q.total_attempts} attempts
+                    </p>
+                    <div style={{ marginTop: '10px' }}>
+                      <button className="btn btn-secondary"
+                        onClick={() => {
+                          setEditingQuestion(q.id);
+                          setEditForm({});
+                        }}>
+                        ✏️ Edit
+                      </button>
+                      <button
+                        className="btn"
+                        style={{ background: '#e74c3c', color: 'white', margin: '8px' }}
+                        onClick={() => {
+                          if (window.confirm(`Delete "${q.question}"?`)) {
+                            deleteQuestion(q.id);
+                          }
+                        }}>
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            <button className="btn btn-primary"
+              onClick={() => setScreen('home')}>
+              ← Back to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   // LEADERBOARD SCREEN
   if (screen === 'leaderboard') return (
     <div className="app">
