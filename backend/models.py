@@ -23,6 +23,7 @@ class Player(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True)
+    passkey_hash = Column(String, nullable=True)   # ← NEW
     total_quizzes = Column(Integer, default=0)
     best_score = Column(Integer, default=0)
     total_correct = Column(Integer, default=0)
