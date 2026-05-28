@@ -26,6 +26,10 @@ def get_questions(category: str, db: Session = Depends(get_db)):
 def get_all_questions(db: Session = Depends(get_db)):
     return db.query(Question).all()
 
+@router.get("/pending")
+def get_pending_suggestions(db: Session = Depends(get_db)):
+    return db.query(Question).filter(Question.difficulty == "pending").all()
+
 @router.get("/stats")
 def get_question_stats(category: str, db: Session = Depends(get_db)):
     questions = db.query(Question).filter(
@@ -135,6 +139,7 @@ def update_question(
     option_d: str = None,
     correct_answer: str = None,
     fun_fact: str = None,
+    difficulty: str = None,
     db: Session = Depends(get_db),
     x_api_key: str = Header(...)
 ):
@@ -152,6 +157,7 @@ def update_question(
     if option_d: question.option_d = option_d
     if correct_answer: question.correct_answer = correct_answer
     if fun_fact: question.fun_fact = fun_fact
+    if difficulty: question.difficulty = difficulty
 
     db.commit()
     db.refresh(question)

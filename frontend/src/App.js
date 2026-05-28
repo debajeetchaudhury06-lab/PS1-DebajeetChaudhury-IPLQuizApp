@@ -40,7 +40,9 @@ function App() {
   const [error, setError] = useState(null);
   const [waitingForApi, setWaitingForApi] = useState(false);
   const [adminKey, setAdminKey] = useState('');
+  const [adminTab, setAdminTab] = useState('questions');
   const [allQuestions, setAllQuestions] = useState([]);
+  const [pendingSuggestions, setPendingSuggestions] = useState([]);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editForm, setEditForm] = useState({});
   const [showSuggest, setShowSuggest] = useState(false);
@@ -49,6 +51,8 @@ function App() {
     option_c: '', option_d: '', correct_answer: '', category: 'IPL History'
   });
   const [suggestSuccess, setSuggestSuccess] = useState(false);
+  const [approveDialog, setApproveDialog] = useState(null);
+  const [approveDifficulty, setApproveDifficulty] = useState('medium');
 
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null || waitingForApi) return;
@@ -197,10 +201,21 @@ function App() {
     try {
       const res = await axios.get(`${API}/questions/all`);
       setAllQuestions(res.data);
+      setPendingSuggestions(res.data.filter(q => q.difficulty === 'pending'));
     } catch (err) {
       console.error(err);
     }
+    setAdminTab('questions');
     setScreen('admin');
+  };
+
+  const loadSuggestions = async () => {
+    try {
+      const res = await axios.get(`${API}/questions/all`);
+      setPendingSuggestions(res.data.filter(q => q.difficulty === 'pending'));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const deleteQuestion = async (id) => {
@@ -244,6 +259,53 @@ function App() {
         alert('Invalid API Key! Access denied.');
       } else {
         alert('Error updating question!');
+      }
+    }
+  };
+
+  const approveSuggestion = async (id, difficulty) => {
+    if (!adminKey) {
+      alert('Please enter admin API key first!');
+      return;
+    }
+    try {
+      await axios.put(`${API}/questions/${id}`, null, {
+        params: { difficulty: difficulty },
+        headers: { 'x-api-key': adminKey }
+      });
+      setPendingSuggestions(prev => prev.filter(q => q.id !== id));
+      setAllQuestions(prev => prev.map(q =>
+        q.id === id ? { ...q, difficulty: difficulty } : q
+      ));
+      setApproveDialog(null);
+      alert(`Question approved as ${difficulty}! It is now live in the quiz.`);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        alert('Invalid API Key! Access denied.');
+      } else {
+        alert('Error approving suggestion!');
+      }
+    }
+  };
+
+  const rejectSuggestion = async (id) => {
+    if (!adminKey) {
+      alert('Please enter admin API key first!');
+      return;
+    }
+    if (!window.confirm('Permanently delete this suggestion?')) return;
+    try {
+      await axios.delete(`${API}/questions/${id}`, {
+        headers: { 'x-api-key': adminKey }
+      });
+      setPendingSuggestions(prev => prev.filter(q => q.id !== id));
+      setAllQuestions(prev => prev.filter(q => q.id !== id));
+      alert('Suggestion rejected and deleted.');
+    } catch (err) {
+      if (err.response?.status === 403) {
+        alert('Invalid API Key! Access denied.');
+      } else {
+        alert('Error rejecting suggestion!');
       }
     }
   };
@@ -704,9 +766,10 @@ function App() {
         <div style={{ padding: '20px 0' }}>
           <h2 style={{ textAlign: 'center', color: '#f5a623' }}>🔐 Admin Panel</h2>
 
+          {/* API KEY INPUT */}
           <div className="question-card" style={{ marginBottom: '20px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
-              Admin API Key (required for edit & delete)
+              Admin API Key (required for all actions)
             </h3>
             <input
               className="name-input"
@@ -716,93 +779,223 @@ function App() {
               onChange={e => setAdminKey(e.target.value)}
               style={{ textAlign: 'left', width: '100%' }}
             />
+            {adminKey && (
+              <p style={{ color: '#2ecc71', fontSize: '0.85rem', marginTop: '8px' }}>
+                ✅ API key entered
+              </p>
+            )}
           </div>
 
-          <div className="question-card">
-            <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
-              All Questions ({allQuestions.length})
-            </h3>
-            {allQuestions.map((q, i) => (
-              <div key={q.id} style={{
-                marginBottom: '20px', padding: '15px',
-                background: q.difficulty === 'pending' ? '#1a0a00' : '#0f3460',
-                borderRadius: '10px',
-                border: q.difficulty === 'pending' ? '1px solid #f39c12' : 'none'
-              }}>
-                {editingQuestion === q.id ? (
-                  <div>
-                    <p style={{ color: '#f5a623', marginBottom: '10px' }}>Editing Q{i + 1}</p>
-                    <input className="name-input" defaultValue={q.question}
-                      placeholder="Question text"
-                      onChange={e => setEditForm(prev => ({ ...prev, question_text: e.target.value }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
-                    {['a', 'b', 'c', 'd'].map(opt => (
-                      <input key={opt} className="name-input"
-                        defaultValue={q[`option_${opt}`]}
-                        placeholder={`Option ${opt.toUpperCase()}`}
-                        onChange={e => setEditForm(prev => ({ ...prev, [`option_${opt}`]: e.target.value }))}
-                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
-                    ))}
-                    <input className="name-input" defaultValue={q.correct_answer}
-                      placeholder="Correct Answer (A/B/C/D)"
-                      onChange={e => setEditForm(prev => ({ ...prev, correct_answer: e.target.value }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
-                    <input className="name-input" defaultValue={q.fun_fact}
-                      placeholder="Fun fact"
-                      onChange={e => setEditForm(prev => ({ ...prev, fun_fact: e.target.value }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
-                    <div>
-                      <button className="btn btn-primary" onClick={() => updateQuestion(q.id)}>
-                        ✅ Save Changes
-                      </button>
-                      <button className="btn btn-secondary"
-                        onClick={() => { setEditingQuestion(null); setEditForm({}); }}>
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
-                        Q{i + 1} — {q.category}
-                      </span>
-                      <span className={`difficulty-badge ${q.difficulty}`}
-                        style={q.difficulty === 'pending' ? {
-                          background: 'rgba(243,156,18,0.3)', color: '#f39c12', border: '1px solid #f39c12'
-                        } : {}}>
-                        {q.difficulty === 'pending' ? '⏳ PENDING REVIEW' : q.difficulty?.toUpperCase()}
-                      </span>
-                    </div>
-                    <p style={{ color: 'white', marginBottom: '10px' }}>{q.question}</p>
-                    <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
-                      ✅ Answer: {q.correct_answer} &nbsp;|&nbsp; 👥 {q.total_attempts} attempts
-                    </p>
-                    {q.fun_fact && (
-                      <p style={{ color: '#f5a623', fontSize: '0.85rem', marginTop: '5px' }}>
-                        💡 {q.fun_fact}
-                      </p>
-                    )}
-                    <div style={{ marginTop: '10px' }}>
-                      <button className="btn btn-secondary"
-                        onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>
-                        ✏️ Edit
-                      </button>
-                      <button className="btn"
-                        style={{ background: '#e74c3c', color: 'white', margin: '8px' }}
-                        onClick={() => {
-                          if (window.confirm(`Delete "${q.question}"?`)) {
-                            deleteQuestion(q.id);
-                          }
-                        }}>
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+          {/* TABS */}
+          <div className="nav" style={{ marginBottom: '20px' }}>
+            <button
+              className={`nav-btn ${adminTab === 'questions' ? 'active' : ''}`}
+              onClick={() => setAdminTab('questions')}>
+              📋 All Questions ({allQuestions.filter(q => q.difficulty !== 'pending').length})
+            </button>
+            <button
+              className={`nav-btn ${adminTab === 'suggestions' ? 'active' : ''}`}
+              onClick={() => { setAdminTab('suggestions'); loadSuggestions(); }}>
+              💡 Suggestions
+              {pendingSuggestions.length > 0 && (
+                <span style={{
+                  background: '#e74c3c', color: 'white',
+                  borderRadius: '50%', fontSize: '0.75rem',
+                  padding: '2px 7px', marginLeft: '8px'
+                }}>
+                  {pendingSuggestions.length}
+                </span>
+              )}
+            </button>
           </div>
+
+          {/* SUGGESTIONS TAB */}
+          {adminTab === 'suggestions' && (
+            <div className="question-card">
+              <h3 style={{ color: '#f5a623', marginBottom: '5px' }}>
+                💡 Pending Suggestions
+              </h3>
+              <p style={{ color: '#aaa', fontSize: '0.85rem', marginBottom: '20px' }}>
+                Approve or reject user-submitted questions. API key required.
+              </p>
+
+              {pendingSuggestions.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                  <div style={{ fontSize: '3rem' }}>🎉</div>
+                  <p style={{ color: '#aaa', marginTop: '10px' }}>No pending suggestions!</p>
+                </div>
+              ) : (
+                pendingSuggestions.map((q) => (
+                  <div key={q.id} style={{
+                    marginBottom: '20px', padding: '15px',
+                    background: '#1a0a00', borderRadius: '10px',
+                    border: '1px solid #f39c12'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                      <span style={{ color: '#f39c12', fontWeight: 'bold', fontSize: '0.85rem' }}>
+                        {q.category}
+                      </span>
+                      <span style={{ color: '#aaa', fontSize: '0.8rem' }}>
+                        {q.fun_fact}
+                      </span>
+                    </div>
+
+                    <p style={{ color: 'white', fontWeight: 'bold', marginBottom: '12px' }}>
+                      {q.question}
+                    </p>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                      {['a', 'b', 'c', 'd'].map(opt => (
+                        <div key={opt} style={{
+                          padding: '8px 12px', borderRadius: '8px', fontSize: '0.85rem',
+                          background: q.correct_answer === opt.toUpperCase()
+                            ? 'rgba(46,204,113,0.2)' : '#0f3460',
+                          border: q.correct_answer === opt.toUpperCase()
+                            ? '1px solid #2ecc71' : '1px solid transparent',
+                          color: q.correct_answer === opt.toUpperCase() ? '#2ecc71' : '#ccc'
+                        }}>
+                          {opt.toUpperCase()}. {q[`option_${opt}`]}
+                          {q.correct_answer === opt.toUpperCase() && ' ✅'}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* APPROVE DIALOG */}
+                    {approveDialog === q.id ? (
+                      <div style={{
+                        background: '#0f3460', borderRadius: '10px',
+                        padding: '15px', marginTop: '10px'
+                      }}>
+                        <p style={{ color: '#f5a623', marginBottom: '10px', fontWeight: 'bold' }}>
+                          Set difficulty before approving:
+                        </p>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                          {['easy', 'medium', 'hard'].map(d => (
+                            <button key={d} onClick={() => setApproveDifficulty(d)}
+                              style={{
+                                padding: '8px 16px', borderRadius: '8px', cursor: 'pointer',
+                                border: approveDifficulty === d ? '2px solid #f5a623' : '1px solid #aaa',
+                                background: approveDifficulty === d ? 'rgba(245,166,35,0.2)' : 'transparent',
+                                color: approveDifficulty === d ? '#f5a623' : '#aaa',
+                                fontWeight: approveDifficulty === d ? 'bold' : 'normal'
+                              }}>
+                              {d === 'easy' ? '🟢' : d === 'medium' ? '🟡' : '🔴'} {d.charAt(0).toUpperCase() + d.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                        <div>
+                          <button className="btn btn-primary"
+                            onClick={() => approveSuggestion(q.id, approveDifficulty)}>
+                            ✅ Confirm Approve
+                          </button>
+                          <button className="btn btn-secondary"
+                            onClick={() => setApproveDialog(null)}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <button className="btn btn-primary"
+                          onClick={() => { setApproveDialog(q.id); setApproveDifficulty('medium'); }}>
+                          ✅ Approve
+                        </button>
+                        <button className="btn"
+                          style={{ background: '#e74c3c', color: 'white' }}
+                          onClick={() => rejectSuggestion(q.id)}>
+                          🗑️ Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* ALL QUESTIONS TAB */}
+          {adminTab === 'questions' && (
+            <div className="question-card">
+              <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
+                All Questions ({allQuestions.filter(q => q.difficulty !== 'pending').length})
+              </h3>
+              {allQuestions.filter(q => q.difficulty !== 'pending').map((q, i) => (
+                <div key={q.id} style={{
+                  marginBottom: '20px', padding: '15px',
+                  background: '#0f3460', borderRadius: '10px'
+                }}>
+                  {editingQuestion === q.id ? (
+                    <div>
+                      <p style={{ color: '#f5a623', marginBottom: '10px' }}>Editing Q{i + 1}</p>
+                      <input className="name-input" defaultValue={q.question}
+                        placeholder="Question text"
+                        onChange={e => setEditForm(prev => ({ ...prev, question_text: e.target.value }))}
+                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
+                      {['a', 'b', 'c', 'd'].map(opt => (
+                        <input key={opt} className="name-input"
+                          defaultValue={q[`option_${opt}`]}
+                          placeholder={`Option ${opt.toUpperCase()}`}
+                          onChange={e => setEditForm(prev => ({ ...prev, [`option_${opt}`]: e.target.value }))}
+                          style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
+                      ))}
+                      <input className="name-input" defaultValue={q.correct_answer}
+                        placeholder="Correct Answer (A/B/C/D)"
+                        onChange={e => setEditForm(prev => ({ ...prev, correct_answer: e.target.value }))}
+                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
+                      <input className="name-input" defaultValue={q.fun_fact}
+                        placeholder="Fun fact"
+                        onChange={e => setEditForm(prev => ({ ...prev, fun_fact: e.target.value }))}
+                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
+                      <div>
+                        <button className="btn btn-primary" onClick={() => updateQuestion(q.id)}>
+                          ✅ Save Changes
+                        </button>
+                        <button className="btn btn-secondary"
+                          onClick={() => { setEditingQuestion(null); setEditForm({}); }}>
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
+                          Q{i + 1} — {q.category}
+                        </span>
+                        <span className={`difficulty-badge ${q.difficulty}`}>
+                          {q.difficulty?.toUpperCase()}
+                        </span>
+                      </div>
+                      <p style={{ color: 'white', marginBottom: '10px' }}>{q.question}</p>
+                      <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
+                        ✅ Answer: {q.correct_answer} &nbsp;|&nbsp; 👥 {q.total_attempts} attempts
+                      </p>
+                      {q.fun_fact && (
+                        <p style={{ color: '#f5a623', fontSize: '0.85rem', marginTop: '5px' }}>
+                          💡 {q.fun_fact}
+                        </p>
+                      )}
+                      <div style={{ marginTop: '10px' }}>
+                        <button className="btn btn-secondary"
+                          onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>
+                          ✏️ Edit
+                        </button>
+                        <button className="btn"
+                          style={{ background: '#e74c3c', color: 'white', margin: '8px' }}
+                          onClick={() => {
+                            if (window.confirm(`Delete "${q.question}"?`)) {
+                              deleteQuestion(q.id);
+                            }
+                          }}>
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <button className="btn btn-primary" onClick={() => setScreen('home')}>
