@@ -16,7 +16,8 @@ def verify_admin(x_api_key: str = Header(...)):
 @router.get("/")
 def get_questions(category: str, db: Session = Depends(get_db)):
     questions = db.query(Question).filter(
-        Question.category == category
+        Question.category == category,
+        Question.difficulty != "pending"
     ).all()
     random.shuffle(questions)
     return questions[:7]
@@ -24,6 +25,33 @@ def get_questions(category: str, db: Session = Depends(get_db)):
 @router.get("/all")
 def get_all_questions(db: Session = Depends(get_db)):
     return db.query(Question).all()
+
+@router.get("/stats")
+def get_question_stats(category: str, db: Session = Depends(get_db)):
+    questions = db.query(Question).filter(
+        Question.category == category,
+        Question.difficulty != "pending"
+    ).all()
+
+    stats = []
+    for q in questions:
+        if q.total_attempts > 0:
+            accuracy = round(
+                (q.correct_attempts / q.total_attempts) * 100, 1
+            )
+        else:
+            accuracy = 0.0
+
+        stats.append({
+            "id": q.id,
+            "question": q.question,
+            "total_attempts": q.total_attempts,
+            "correct_attempts": q.correct_attempts,
+            "accuracy": accuracy,
+            "difficulty": q.difficulty
+        })
+
+    return stats
 
 @router.get("/{question_id}")
 def get_question(question_id: int, db: Session = Depends(get_db)):
@@ -70,7 +98,33 @@ def submit_answer(
         "difficulty": question.difficulty
     }
 
-@router.put("/{question_id}")
+@router.post("/suggest")
+def suggest_question(
+    question: str,
+    option_a: str,
+    option_b: str,
+    option_c: str,
+    option_d: str,
+    correct_answer: str,
+    category: str,
+    suggested_by: str,
+    db: Session = Depends(get_db)
+):
+    new_question = Question(
+        category=category,
+        question=question,
+        option_a=option_a,
+        option_b=option_b,
+        option_c=option_c,
+        option_d=option_d,
+        correct_answer=correct_answer,
+        fun_fact=f"Suggested by {suggested_by}",
+        difficulty="pending"
+    )
+    db.add(new_question)
+    db.commit()
+    return {"message": "Question suggested successfully! Admin will review it."}
+
 @router.put("/{question_id}")
 def update_question(
     question_id: int,
@@ -119,29 +173,3 @@ def delete_question(
     db.delete(question)
     db.commit()
     return {"message": f"Question {question_id} deleted successfully!"}
-
-@router.get("/stats")
-def get_question_stats(category: str, db: Session = Depends(get_db)):
-    questions = db.query(Question).filter(
-        Question.category == category
-    ).all()
-
-    stats = []
-    for q in questions:
-        if q.total_attempts > 0:
-            accuracy = round(
-                (q.correct_attempts / q.total_attempts) * 100, 1
-            )
-        else:
-            accuracy = 0.0
-
-        stats.append({
-            "id": q.id,
-            "question": q.question,
-            "total_attempts": q.total_attempts,
-            "correct_attempts": q.correct_attempts,
-            "accuracy": accuracy,
-            "difficulty": q.difficulty
-        })
-
-    return stats

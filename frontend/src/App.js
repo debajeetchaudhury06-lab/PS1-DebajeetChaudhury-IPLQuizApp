@@ -43,6 +43,12 @@ function App() {
   const [allQuestions, setAllQuestions] = useState([]);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [editForm, setEditForm] = useState({});
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [suggestForm, setSuggestForm] = useState({
+    question: '', option_a: '', option_b: '',
+    option_c: '', option_d: '', correct_answer: '', category: 'IPL History'
+  });
+  const [suggestSuccess, setSuggestSuccess] = useState(false);
 
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null || waitingForApi) return;
@@ -239,6 +245,31 @@ function App() {
       } else {
         alert('Error updating question!');
       }
+    }
+  };
+
+  const submitSuggestion = async () => {
+    if (!suggestForm.question || !suggestForm.option_a ||
+        !suggestForm.option_b || !suggestForm.option_c ||
+        !suggestForm.option_d || !suggestForm.correct_answer) {
+      alert('Please fill all fields!');
+      return;
+    }
+    try {
+      await axios.post(`${API}/questions/suggest`, null, {
+        params: {
+          ...suggestForm,
+          suggested_by: playerName || 'Anonymous'
+        }
+      });
+      setSuggestSuccess(true);
+      setSuggestForm({
+        question: '', option_a: '', option_b: '',
+        option_c: '', option_d: '', correct_answer: '',
+        category: 'IPL History'
+      });
+    } catch (err) {
+      alert('Error submitting suggestion!');
     }
   };
 
@@ -445,8 +476,106 @@ function App() {
             <button className="btn btn-secondary" onClick={() => setScreen('analytics')}>
               📊 View Analytics
             </button>
+            <button className="btn btn-secondary"
+              onClick={() => { setShowSuggest(true); setSuggestSuccess(false); }}>
+              💡 Suggest a Question
+            </button>
           </div>
         </div>
+
+        {/* SUGGEST MODAL */}
+        {showSuggest && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0,
+            width: '100%', height: '100%',
+            background: 'rgba(0,0,0,0.8)',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'center', zIndex: 1000
+          }}>
+            <div style={{
+              background: '#16213e', borderRadius: '20px',
+              padding: '30px', width: '90%', maxWidth: '500px',
+              maxHeight: '80vh', overflowY: 'auto'
+            }}>
+              <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
+                💡 Suggest a Question
+              </h3>
+
+              {suggestSuccess ? (
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '3rem' }}>🎉</div>
+                  <h3 style={{ color: '#2ecc71', margin: '15px 0' }}>
+                    Suggestion Submitted!
+                  </h3>
+                  <p style={{ color: '#aaa', marginBottom: '20px' }}>
+                    Admin will review your question. Thanks!
+                  </p>
+                  <button className="btn btn-primary" onClick={() => setShowSuggest(false)}>
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <select
+                    value={suggestForm.category}
+                    onChange={e => setSuggestForm(prev => ({ ...prev, category: e.target.value }))}
+                    style={{
+                      width: '100%', padding: '12px', borderRadius: '10px',
+                      background: '#0f3460', color: 'white',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      marginBottom: '10px', fontSize: '1rem'
+                    }}>
+                    <option value="IPL History">🏆 IPL History</option>
+                    <option value="Player Records">🌟 Player Records</option>
+                  </select>
+
+                  <input className="name-input"
+                    placeholder="Enter your question..."
+                    value={suggestForm.question}
+                    onChange={e => setSuggestForm(prev => ({ ...prev, question: e.target.value }))}
+                    style={{ textAlign: 'left', width: '100%', marginBottom: '10px' }} />
+
+                  {['a', 'b', 'c', 'd'].map(opt => (
+                    <input key={opt} className="name-input"
+                      placeholder={`Option ${opt.toUpperCase()}`}
+                      value={suggestForm[`option_${opt}`]}
+                      onChange={e => setSuggestForm(prev => ({
+                        ...prev, [`option_${opt}`]: e.target.value
+                      }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '10px' }} />
+                  ))}
+
+                  <select
+                    value={suggestForm.correct_answer}
+                    onChange={e => setSuggestForm(prev => ({
+                      ...prev, correct_answer: e.target.value
+                    }))}
+                    style={{
+                      width: '100%', padding: '12px', borderRadius: '10px',
+                      background: '#0f3460', color: 'white',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      marginBottom: '20px', fontSize: '1rem'
+                    }}>
+                    <option value="">Select Correct Answer</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+
+                  <div style={{ textAlign: 'center' }}>
+                    <button className="btn btn-primary" onClick={submitSuggestion}>
+                      Submit Suggestion ✅
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => setShowSuggest(false)}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -577,7 +706,7 @@ function App() {
 
           <div className="question-card" style={{ marginBottom: '20px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
-              Admin API Key (required for delete)
+              Admin API Key (required for edit & delete)
             </h3>
             <input
               className="name-input"
@@ -596,7 +725,9 @@ function App() {
             {allQuestions.map((q, i) => (
               <div key={q.id} style={{
                 marginBottom: '20px', padding: '15px',
-                background: '#0f3460', borderRadius: '10px'
+                background: q.difficulty === 'pending' ? '#1a0a00' : '#0f3460',
+                borderRadius: '10px',
+                border: q.difficulty === 'pending' ? '1px solid #f39c12' : 'none'
               }}>
                 {editingQuestion === q.id ? (
                   <div>
@@ -636,14 +767,22 @@ function App() {
                       <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
                         Q{i + 1} — {q.category}
                       </span>
-                      <span className={`difficulty-badge ${q.difficulty}`}>
-                        {q.difficulty?.toUpperCase()}
+                      <span className={`difficulty-badge ${q.difficulty}`}
+                        style={q.difficulty === 'pending' ? {
+                          background: 'rgba(243,156,18,0.3)', color: '#f39c12', border: '1px solid #f39c12'
+                        } : {}}>
+                        {q.difficulty === 'pending' ? '⏳ PENDING REVIEW' : q.difficulty?.toUpperCase()}
                       </span>
                     </div>
                     <p style={{ color: 'white', marginBottom: '10px' }}>{q.question}</p>
                     <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
                       ✅ Answer: {q.correct_answer} &nbsp;|&nbsp; 👥 {q.total_attempts} attempts
                     </p>
+                    {q.fun_fact && (
+                      <p style={{ color: '#f5a623', fontSize: '0.85rem', marginTop: '5px' }}>
+                        💡 {q.fun_fact}
+                      </p>
+                    )}
                     <div style={{ marginTop: '10px' }}>
                       <button className="btn btn-secondary"
                         onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>
