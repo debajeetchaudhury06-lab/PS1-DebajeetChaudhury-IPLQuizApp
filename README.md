@@ -78,6 +78,7 @@ Frontend runs at: http://localhost:3000
 
 ## 📁 Project Structure
 
+```
 ipl-quiz-app/
 ├── backend/
 │   ├── main.py            → FastAPI app entry point
@@ -93,6 +94,7 @@ ipl-quiz-app/
 │       ├── App.js         → Main React app
 │       └── App.css        → Styling
 └── README.md
+```
 ## 📚 What I Learned
 - Building REST APIs with FastAPI
 - React frontend development
