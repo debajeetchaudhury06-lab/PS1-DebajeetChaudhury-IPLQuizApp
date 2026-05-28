@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import './App.css';
 
-const API = 'https://ps1-debajeetchaudhury-iplquizapp-production.up.railway.app';
+const API = 'https://backend12.up.railway.app';
 
 const questionThemes = [
   'theme-rr',
