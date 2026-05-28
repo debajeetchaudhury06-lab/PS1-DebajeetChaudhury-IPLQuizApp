@@ -19,11 +19,6 @@ const questionThemes = [
 ];
 
 function App() {
-  const [adminKey, setAdminKey] = useState('');
-const [adminMode, setAdminMode] = useState(false);
-const [allQuestions, setAllQuestions] = useState([]);
-const [editingQuestion, setEditingQuestion] = useState(null);
-const [editForm, setEditForm] = useState({});
   const [screen, setScreen] = useState('home');
   const [playerName, setPlayerName] = useState('');
   const [category, setCategory] = useState('');
@@ -45,9 +40,9 @@ const [editForm, setEditForm] = useState({});
   const [error, setError] = useState(null);
   const [waitingForApi, setWaitingForApi] = useState(false);
   const [adminKey, setAdminKey] = useState('');
-const [allQuestions, setAllQuestions] = useState([]);
-const [editingQuestion, setEditingQuestion] = useState(null);
-const [editForm, setEditForm] = useState({});
+  const [allQuestions, setAllQuestions] = useState([]);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
   const handleAnswer = useCallback(async (answer) => {
     if (selected !== null || waitingForApi) return;
@@ -240,7 +235,7 @@ const [editForm, setEditForm] = useState({});
 
   const getOptionClass = (opt) => {
     if (selected === null) return 'option-btn';
-    if (isCorrect === null) return 'option-btn'; // Still waiting for API
+    if (isCorrect === null) return 'option-btn';
     const correct = questions[currentQ]?.correct_answer;
     if (opt === correct) return 'option-btn correct';
     if (opt === selected && opt !== correct) return 'option-btn wrong';
@@ -253,7 +248,6 @@ const [editForm, setEditForm] = useState({});
       <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🏏</div>
       <h2 style={{ color: '#f5a623', marginBottom: '10px' }}>Loading...</h2>
       <p style={{ color: 'rgba(255,255,255,0.7)' }}>Please wait a moment</p>
-      <div className="loading-spinner" />
     </div>
   );
 
@@ -262,16 +256,8 @@ const [editForm, setEditForm] = useState({});
     <div className="app" style={{ textAlign: 'center', paddingTop: '200px' }}>
       <div style={{ fontSize: '4rem', marginBottom: '20px' }}>❌</div>
       <h2 style={{ color: '#e74c3c', marginBottom: '10px' }}>Oops!</h2>
-      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '20px' }}>
-        {error}
-      </p>
-      <button
-        className="btn btn-primary"
-        onClick={() => {
-          setError(null);
-          setScreen('home');
-        }}
-      >
+      <p style={{ color: 'rgba(255,255,255,0.7)', marginBottom: '20px' }}>{error}</p>
+      <button className="btn btn-primary" onClick={() => { setError(null); setScreen('home'); }}>
         Go Back Home 🏠
       </button>
     </div>
@@ -299,26 +285,22 @@ const [editForm, setEditForm] = useState({});
           <>
             <h3 style={{ marginBottom: '15px' }}>Select a Category</h3>
             <div className="category-buttons">
-              <button className="category-btn"
-                onClick={() => startQuiz('IPL History')}>
+              <button className="category-btn" onClick={() => startQuiz('IPL History')}>
                 🏆 IPL History
               </button>
-              <button className="category-btn"
-                onClick={() => startQuiz('Player Records')}>
+              <button className="category-btn" onClick={() => startQuiz('Player Records')}>
                 🌟 Player Records
               </button>
             </div>
           </>
         )}
         <br />
-        <button className="btn btn-secondary"
-          onClick={() => loadLeaderboard('IPL History')}>
+        <button className="btn btn-secondary" onClick={() => loadLeaderboard('IPL History')}>
           🏆 View Leaderboard
         </button>
-        <button className="btn btn-secondary"
-  onClick={loadAllQuestions}>
-  🔐 Admin Panel
-</button>
+        <button className="btn btn-secondary" onClick={loadAllQuestions}>
+          🔐 Admin Panel
+        </button>
       </div>
     </div>
   );
@@ -335,22 +317,16 @@ const [editForm, setEditForm] = useState({});
         </div>
         <div className="quiz-screen">
           <div className="quiz-header">
-            <span className="progress">
-              Q {currentQ + 1} of {questions.length}
-            </span>
-            <span className={`timer ${timer <= 10 ? 'warning' : ''}`}>
-              ⏱️ {timer}s
-            </span>
+            <span className="progress">Q {currentQ + 1} of {questions.length}</span>
+            <span className={`timer ${timer <= 10 ? 'warning' : ''}`}>⏱️ {timer}s</span>
             <span className="streak">
               {streak >= 3 ? `🔥 ${streak} Streak!` : `Streak: ${streak}`}
             </span>
           </div>
 
           <div className="progress-bar">
-            <div
-              className="progress-fill"
-              style={{ width: `${(currentQ / questions.length) * 100}%` }}
-            />
+            <div className="progress-fill"
+              style={{ width: `${(currentQ / questions.length) * 100}%` }} />
           </div>
 
           <div className={`question-card ${
@@ -370,8 +346,7 @@ const [editForm, setEditForm] = useState({});
                   onClick={() => handleAnswer(opt)}
                   disabled={selected !== null}
                 >
-                  <strong>{opt})</strong>{' '}
-                  {q?.[`option_${opt.toLowerCase()}`]}
+                  <strong>{opt})</strong>{' '}{q?.[`option_${opt.toLowerCase()}`]}
                 </button>
               ))}
             </div>
@@ -379,14 +354,13 @@ const [editForm, setEditForm] = useState({});
 
           {waitingForApi && (
             <div style={{ textAlign: 'center', marginTop: '15px' }}>
-              <div className="loading-spinner" style={{ width: '30px', height: '30px', borderWidth: '3px' }} />
+              <p style={{ color: '#f5a623' }}>Checking answer...</p>
             </div>
           )}
 
           {selected && isCorrect !== null && (
             <div className={`result-banner ${isCorrect ? 'correct' : 'wrong'}`}>
-              {isCorrect
-                ? '🎉 Correct! Well done!'
+              {isCorrect ? '🎉 Correct! Well done!'
                 : `❌ Wrong! The answer was ${questions[currentQ]?.correct_answer}`}
             </div>
           )}
@@ -400,9 +374,7 @@ const [editForm, setEditForm] = useState({});
           {selected && isCorrect !== null && (
             <div style={{ textAlign: 'center', marginTop: '20px' }}>
               <button className="btn btn-primary" onClick={nextQuestion}>
-                {currentQ + 1 < questions.length
-                  ? 'Next Question →'
-                  : 'See Results 🏆'}
+                {currentQ + 1 < questions.length ? 'Next Question →' : 'See Results 🏆'}
               </button>
             </div>
           )}
@@ -444,9 +416,7 @@ const [editForm, setEditForm] = useState({});
           </div>
           {playerStats && (
             <div className="question-card" style={{ textAlign: 'left' }}>
-              <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
-                📊 Your Stats
-              </h3>
+              <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>📊 Your Stats</h3>
               <p>🏆 Best Score Ever: {playerStats.best_score}/{questions.length}</p>
               <p>🎮 Total Quizzes Played: {playerStats.total_quizzes}</p>
               <p>⚡ Best Streak Ever: {playerStats.best_streak}</p>
@@ -454,20 +424,16 @@ const [editForm, setEditForm] = useState({});
             </div>
           )}
           <div>
-            <button className="btn btn-primary"
-              onClick={() => startQuiz(category)}>
+            <button className="btn btn-primary" onClick={() => startQuiz(category)}>
               Play Again 🔄
             </button>
-            <button className="btn btn-secondary"
-              onClick={() => setScreen('home')}>
+            <button className="btn btn-secondary" onClick={() => setScreen('home')}>
               Home 🏠
             </button>
-            <button className="btn btn-secondary"
-              onClick={() => loadLeaderboard('IPL History')}>
+            <button className="btn btn-secondary" onClick={() => loadLeaderboard('IPL History')}>
               Leaderboard 🏆
             </button>
-            <button className="btn btn-secondary"
-              onClick={() => setScreen('analytics')}>
+            <button className="btn btn-secondary" onClick={() => setScreen('analytics')}>
               📊 View Analytics
             </button>
           </div>
@@ -480,16 +446,8 @@ const [editForm, setEditForm] = useState({});
   if (screen === 'analytics') {
     document.body.className = 'theme-analytics';
     const pieData = [
-      {
-        name: 'Correct',
-        value: questionStats.reduce((a, q) => a + q.correct_attempts, 0)
-      },
-      {
-        name: 'Wrong',
-        value: questionStats.reduce(
-          (a, q) => a + (q.total_attempts - q.correct_attempts), 0
-        )
-      }
+      { name: 'Correct', value: questionStats.reduce((a, q) => a + q.correct_attempts, 0) },
+      { name: 'Wrong', value: questionStats.reduce((a, q) => a + (q.total_attempts - q.correct_attempts), 0) }
     ];
     const COLORS = ['#2ecc71', '#e74c3c'];
 
@@ -499,12 +457,8 @@ const [editForm, setEditForm] = useState({});
           <h1>🏏 IPL Quiz</h1>
         </div>
         <div style={{ padding: '20px 0' }}>
-          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
-            📊 Question Analytics
-          </h2>
-          <h4 style={{ textAlign: 'center', color: '#aaa', marginBottom: '30px' }}>
-            {category}
-          </h4>
+          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>📊 Question Analytics</h2>
+          <h4 style={{ textAlign: 'center', color: '#aaa', marginBottom: '30px' }}>{category}</h4>
 
           <div className="question-card" style={{ marginBottom: '30px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '20px', textAlign: 'center' }}>
@@ -512,10 +466,8 @@ const [editForm, setEditForm] = useState({});
             </h3>
             <ResponsiveContainer width="100%" height={250}>
               <PieChart>
-                <Pie data={pieData} cx="50%" cy="50%"
-                  outerRadius={80} dataKey="value"
-                  label={({ name, percent }) =>
-                    `${name} ${(percent * 100).toFixed(0)}%`}>
+                <Pie data={pieData} cx="50%" cy="50%" outerRadius={80} dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                   {pieData.map((entry, index) => (
                     <Cell key={index} fill={COLORS[index]} />
                   ))}
@@ -533,25 +485,19 @@ const [editForm, setEditForm] = useState({});
             <ResponsiveContainer width="100%" height={300}>
               <BarChart
                 data={questionStats.map((q, i) => ({
-                  name: `Q${i + 1}`,
-                  accuracy: q.accuracy,
-                  difficulty: q.difficulty
+                  name: `Q${i + 1}`, accuracy: q.accuracy, difficulty: q.difficulty
                 }))}
                 margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#0f3460" />
                 <XAxis dataKey="name" stroke="#fff" />
-                <YAxis stroke="#fff" domain={[0, 100]}
-                  tickFormatter={v => `${v}%`} />
-                <Tooltip
-                  formatter={(value) => [`${value}%`, 'Accuracy']}
+                <YAxis stroke="#fff" domain={[0, 100]} tickFormatter={v => `${v}%`} />
+                <Tooltip formatter={(value) => [`${value}%`, 'Accuracy']}
                   contentStyle={{ background: '#16213e', border: 'none' }} />
                 <Bar dataKey="accuracy" radius={[5, 5, 0, 0]}>
                   {questionStats.map((q, index) => (
                     <Cell key={index}
-                      fill={
-                        q.difficulty === 'easy' ? '#2ecc71' :
-                        q.difficulty === 'medium' ? '#f39c12' : '#e74c3c'
-                      } />
+                      fill={q.difficulty === 'easy' ? '#2ecc71' :
+                            q.difficulty === 'medium' ? '#f39c12' : '#e74c3c'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -564,32 +510,22 @@ const [editForm, setEditForm] = useState({});
           </div>
 
           <div className="question-card">
-            <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
-              Question Breakdown
-            </h3>
+            <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>Question Breakdown</h3>
             {questionStats.map((q, i) => (
               <div key={q.id} style={{
                 marginBottom: '15px', padding: '15px',
                 background: '#0f3460', borderRadius: '10px'
               }}>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  marginBottom: '8px'
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <span style={{ fontWeight: 'bold' }}>Q{i + 1}</span>
                   <span className={`difficulty-badge ${q.difficulty}`}>
                     {q.difficulty.toUpperCase()}
                   </span>
                 </div>
-                <p style={{
-                  color: '#aaa', fontSize: '0.9rem', marginBottom: '10px'
-                }}>
+                <p style={{ color: '#aaa', fontSize: '0.9rem', marginBottom: '10px' }}>
                   {q.question}
                 </p>
-                <div style={{
-                  background: '#1a1a2e', borderRadius: '5px',
-                  overflow: 'hidden', height: '20px'
-                }}>
+                <div style={{ background: '#1a1a2e', borderRadius: '5px', overflow: 'hidden', height: '20px' }}>
                   <div style={{
                     width: `${q.accuracy}%`, height: '100%',
                     background: q.difficulty === 'easy' ? '#2ecc71' :
@@ -597,10 +533,7 @@ const [editForm, setEditForm] = useState({});
                     transition: 'width 1s ease'
                   }} />
                 </div>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  marginTop: '5px', fontSize: '0.85rem', color: '#aaa'
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '5px', fontSize: '0.85rem', color: '#aaa' }}>
                   <span>✅ {q.correct_attempts} correct</span>
                   <span>{q.accuracy}% accuracy</span>
                   <span>👥 {q.total_attempts} attempts</span>
@@ -610,12 +543,10 @@ const [editForm, setEditForm] = useState({});
           </div>
 
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button className="btn btn-secondary"
-              onClick={() => setScreen('results')}>
+            <button className="btn btn-secondary" onClick={() => setScreen('results')}>
               ← Back to Results
             </button>
-            <button className="btn btn-primary"
-              onClick={() => setScreen('home')}>
+            <button className="btn btn-primary" onClick={() => setScreen('home')}>
               Home 🏠
             </button>
           </div>
@@ -633,11 +564,8 @@ const [editForm, setEditForm] = useState({});
           <h1>🏏 IPL Quiz</h1>
         </div>
         <div style={{ padding: '20px 0' }}>
-          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
-            🔐 Admin Panel
-          </h2>
+          <h2 style={{ textAlign: 'center', color: '#f5a623' }}>🔐 Admin Panel</h2>
 
-          {/* API Key Input */}
           <div className="question-card" style={{ marginBottom: '20px' }}>
             <h3 style={{ color: '#f5a623', marginBottom: '15px' }}>
               Admin API Key (required for delete)
@@ -652,7 +580,6 @@ const [editForm, setEditForm] = useState({});
             />
           </div>
 
-          {/* Questions List */}
           <div className="question-card">
             <h3 style={{ color: '#f5a623', marginBottom: '20px' }}>
               All Questions ({allQuestions.length})
@@ -663,71 +590,40 @@ const [editForm, setEditForm] = useState({});
                 background: '#0f3460', borderRadius: '10px'
               }}>
                 {editingQuestion === q.id ? (
-                  // EDIT FORM
                   <div>
-                    <p style={{ color: '#f5a623', marginBottom: '10px' }}>
-                      Editing Q{i + 1}
-                    </p>
-                    <input
-                      className="name-input"
-                      defaultValue={q.question}
+                    <p style={{ color: '#f5a623', marginBottom: '10px' }}>Editing Q{i + 1}</p>
+                    <input className="name-input" defaultValue={q.question}
                       placeholder="Question text"
-                      onChange={e => setEditForm(prev => ({
-                        ...prev, question_text: e.target.value
-                      }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
-                    />
+                      onChange={e => setEditForm(prev => ({ ...prev, question_text: e.target.value }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
                     {['a', 'b', 'c', 'd'].map(opt => (
-                      <input
-                        key={opt}
-                        className="name-input"
+                      <input key={opt} className="name-input"
                         defaultValue={q[`option_${opt}`]}
                         placeholder={`Option ${opt.toUpperCase()}`}
-                        onChange={e => setEditForm(prev => ({
-                          ...prev, [`option_${opt}`]: e.target.value
-                        }))}
-                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
-                      />
+                        onChange={e => setEditForm(prev => ({ ...prev, [`option_${opt}`]: e.target.value }))}
+                        style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
                     ))}
-                    <input
-                      className="name-input"
-                      defaultValue={q.correct_answer}
+                    <input className="name-input" defaultValue={q.correct_answer}
                       placeholder="Correct Answer (A/B/C/D)"
-                      onChange={e => setEditForm(prev => ({
-                        ...prev, correct_answer: e.target.value
-                      }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
-                    />
-                    <input
-                      className="name-input"
-                      defaultValue={q.fun_fact}
+                      onChange={e => setEditForm(prev => ({ ...prev, correct_answer: e.target.value }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
+                    <input className="name-input" defaultValue={q.fun_fact}
                       placeholder="Fun fact"
-                      onChange={e => setEditForm(prev => ({
-                        ...prev, fun_fact: e.target.value
-                      }))}
-                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }}
-                    />
+                      onChange={e => setEditForm(prev => ({ ...prev, fun_fact: e.target.value }))}
+                      style={{ textAlign: 'left', width: '100%', marginBottom: '8px' }} />
                     <div>
-                      <button className="btn btn-primary"
-                        onClick={() => updateQuestion(q.id)}>
+                      <button className="btn btn-primary" onClick={() => updateQuestion(q.id)}>
                         ✅ Save Changes
                       </button>
                       <button className="btn btn-secondary"
-                        onClick={() => {
-                          setEditingQuestion(null);
-                          setEditForm({});
-                        }}>
+                        onClick={() => { setEditingQuestion(null); setEditForm({}); }}>
                         Cancel
                       </button>
                     </div>
                   </div>
                 ) : (
-                  // QUESTION VIEW
                   <div>
-                    <div style={{
-                      display: 'flex', justifyContent: 'space-between',
-                      marginBottom: '8px', alignItems: 'center'
-                    }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
                       <span style={{ fontWeight: 'bold', color: '#f5a623' }}>
                         Q{i + 1} — {q.category}
                       </span>
@@ -735,23 +631,16 @@ const [editForm, setEditForm] = useState({});
                         {q.difficulty?.toUpperCase()}
                       </span>
                     </div>
-                    <p style={{ color: 'white', marginBottom: '10px' }}>
-                      {q.question}
-                    </p>
+                    <p style={{ color: 'white', marginBottom: '10px' }}>{q.question}</p>
                     <p style={{ color: '#aaa', fontSize: '0.85rem' }}>
-                      ✅ Answer: {q.correct_answer} &nbsp;|&nbsp;
-                      👥 {q.total_attempts} attempts
+                      ✅ Answer: {q.correct_answer} &nbsp;|&nbsp; 👥 {q.total_attempts} attempts
                     </p>
                     <div style={{ marginTop: '10px' }}>
                       <button className="btn btn-secondary"
-                        onClick={() => {
-                          setEditingQuestion(q.id);
-                          setEditForm({});
-                        }}>
+                        onClick={() => { setEditingQuestion(q.id); setEditForm({}); }}>
                         ✏️ Edit
                       </button>
-                      <button
-                        className="btn"
+                      <button className="btn"
                         style={{ background: '#e74c3c', color: 'white', margin: '8px' }}
                         onClick={() => {
                           if (window.confirm(`Delete "${q.question}"?`)) {
@@ -768,8 +657,7 @@ const [editForm, setEditForm] = useState({});
           </div>
 
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <button className="btn btn-primary"
-              onClick={() => setScreen('home')}>
+            <button className="btn btn-primary" onClick={() => setScreen('home')}>
               ← Back to Home
             </button>
           </div>
@@ -777,6 +665,7 @@ const [editForm, setEditForm] = useState({});
       </div>
     );
   }
+
   // LEADERBOARD SCREEN
   if (screen === 'leaderboard') return (
     <div className="app">
@@ -784,9 +673,7 @@ const [editForm, setEditForm] = useState({});
         <h1>🏏 IPL Quiz</h1>
       </div>
       <div className="leaderboard-screen">
-        <h2 style={{ textAlign: 'center', color: '#f5a623' }}>
-          🏆 Global Leaderboard
-        </h2>
+        <h2 style={{ textAlign: 'center', color: '#f5a623' }}>🏆 Global Leaderboard</h2>
         <div className="nav" style={{ marginTop: '20px' }}>
           <button
             className={`nav-btn ${leaderboardCategory === 'IPL History' ? 'active' : ''}`}
@@ -800,10 +687,7 @@ const [editForm, setEditForm] = useState({});
           </button>
         </div>
 
-        <h3 style={{
-          textAlign: 'center', color: '#aaa',
-          marginBottom: '15px', marginTop: '10px'
-        }}>
+        <h3 style={{ textAlign: 'center', color: '#aaa', marginBottom: '15px', marginTop: '10px' }}>
           {leaderboardCategory}
         </h3>
 
@@ -841,12 +725,10 @@ const [editForm, setEditForm] = useState({});
         )}
 
         <div style={{ textAlign: 'center', marginTop: '20px' }}>
-          <button className="btn btn-secondary"
-            onClick={() => setScreen('results')}>
+          <button className="btn btn-secondary" onClick={() => setScreen('results')}>
             ← Back to Results
           </button>
-          <button className="btn btn-primary"
-            onClick={() => setScreen('home')}>
+          <button className="btn btn-primary" onClick={() => setScreen('home')}>
             Play Quiz 🏏
           </button>
         </div>
